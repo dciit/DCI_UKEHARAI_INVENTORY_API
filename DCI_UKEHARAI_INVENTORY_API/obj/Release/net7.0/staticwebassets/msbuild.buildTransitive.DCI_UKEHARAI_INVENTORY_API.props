@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="..\buildMultiTargeting\DCI_UKEHARAI_INVENTORY_API.props" />
+</Project>
