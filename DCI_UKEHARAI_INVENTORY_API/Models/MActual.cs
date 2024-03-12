@@ -8,14 +8,14 @@
         public string? line { get; set; }
         public string? wcno { get; set; }
         public string? sebango { get; set; }
-        public string? type { get; set; }   
-        public string? customer { get; set; }   
-        public string? pltype {  get; set; }
+        public string? type { get; set; }
+        public string? customer { get; set; }
+        public string? pltype { get; set; }
         public string? pltypeText { get; set; }
         public string? menuAuto { get; set; }
-        public string? detail { get; set; } 
+        public string? detail { get; set; }
 
-        public string? begin {  get; set; }
+        public string? begin { get; set; }
 
         public double d01 { get; set; }
         public double d02 { get; set; }
@@ -51,12 +51,19 @@
 
 
 
-        public List<AlGsdActpln> listActPln { get; set; }
-        public AlGsdCurpln listCurpln { get; set; }
-        public List<AlSaleForecaseMonth> listSaleForecast { get; set; }
-        public List<MInbound> listInbound { get; set; }
-        public List<string> listPltype { get; set; }
-        public List<MInventory> listInventory { get; set; }
-        public List<MMainResult> listActMain { get; set; }
+        public List<AlGsdActpln> listActFinal { get; set; } = new List<AlGsdActpln>();
+        public List<AlGsdCurpln> listCurpln { get; set; } = new List<AlGsdCurpln>();
+        public List<AlSaleForecaseMonth> listSaleForecast { get; set; } = new List<AlSaleForecaseMonth>();
+        public List<MInbound> listInbound { get; set; } = new List<MInbound>();
+        public List<string> listPltype { get; set; } = new List<string>();
+        public List<MInventory> Inventory { get; set; } = new List<MInventory>();
+        public List<MMainResult> listActMain { get; set; } = new List<MMainResult>();
+
+        public List<MLastInventory> listLastInventory { get; set; } = new List<MLastInventory>();
+        public EkbWipPartStock LastInventoryMain { get; set; } = new EkbWipPartStock();
+        public List<MHoldInventory> listHoldInventory { get; set; } = new List<MHoldInventory>();
+        public List<MHoldInventory> listPDTInventory { get; set; } = new List<MHoldInventory>();
+        public double LastInventory { get; set; } = 0;
+        public List<string> listGroupModel { get; set; } = new List<string>();   
     }
 }

@@ -12,7 +12,8 @@ namespace DCI_UKEHARAI_INVENTORY_API
         SqlConnectDB DBIOTFAC2 = new SqlConnectDB("dbIoTFac2");
         SqlConnectDB DBIOTFAC3 = new SqlConnectDB("dbIoTFac3");
         SqlConnectDB DBIOT = new SqlConnectDB("dbIoT");
-        SqlConnectDB DBSCM = new SqlConnectDB("DBSCM");
+        SqlConnectDB DBIOTL8 = new SqlConnectDB("dbIoTL8");
+        SqlConnectDB DBSCM = new SqlConnectDB("dbSCM");
         SqlConnectDB DBHRM = new SqlConnectDB("dbHRM");
         //private readonly DBIOT2 _DBIOT2;
         public Service(DBSCM dBSCM)
@@ -36,7 +37,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
             string startDate = $@"{year}-{month}-01";
             string endDate = $@"{year}-{month}-{Convert.ToInt32(DateTime.DaysInMonth(int.Parse(year), int.Parse(month))).ToString("##")}";
             List<MMainResult> rMainResult = new List<MMainResult>();
-            List<PnCompressor> rPnCompressor = _DBSCM.PnCompressors.Select(x => new PnCompressor { ModelCode = x.ModelCode, Model = x.Model }).Distinct().ToList();
+            //List<PnCompressor> rPnCompressor = _DBSCM.PnCompressors.Select(x => new PnCompressor { ModelCode = x.ModelCode, Model = x.Model }).Distinct().ToList();
             //---------------------------------------------------------------------------------------------//
             //-------------------------------  ADJ MAIN RESULT L1, 2 -----------------------------------//
             //---------------------------------------------------------------------------------------------//
@@ -46,7 +47,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
                                           when DATEPART(HOUR, StampTime) < 8 then format(DATEADD(day,-1,StampTime),'yyyy-MM-dd','en-US') 
                                           else format(StampTime,'yyyy-MM-dd','en-US') end shiftDate
                                         FROM etd_leak_check
-                                        WHERE StampTime >= '2023-09-01' AND StampTime < '2023-09-30' 
+                                        WHERE StampTime >= @StartDate AND StampTime < @EndDate 
                                             AND LEN(SerialNo) IN ('10', '18') AND LineName IN ('1', '2')
                                         GROUP BY LineName, RIGHT(LEFT(SerialNo, 4),3) , 
                                          case when DATEPART(HOUR, StampTime) >= 8 and DATEPART(HOUR, StampTime) < 20 then format(StampTime,'yyyy-MM-dd', 'en-US') 
@@ -61,11 +62,11 @@ namespace DCI_UKEHARAI_INVENTORY_API
                 string LineName = dr["LineName"].ToString();
                 string ModelCode = dr["Model_No"].ToString();
                 string ModelName = "";
-                var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                if (FindModelName != null)
-                {
-                    ModelName = FindModelName.Model;
-                }
+                //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
+                //if (FindModelName != null)
+                //{
+                //    ModelName = FindModelName.Model;
+                //}
                 string Wcno = "";
                 if (LineName == "1")
                 {
@@ -111,11 +112,11 @@ namespace DCI_UKEHARAI_INVENTORY_API
                 string LineName = dr["LineName"].ToString();
                 string ModelCode = dr["Model_No"].ToString();
                 string ModelName = "";
-                var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                if (FindModelName != null)
-                {
-                    ModelName = FindModelName.Model;
-                }
+                //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
+                //if (FindModelName != null)
+                //{
+                //    ModelName = FindModelName.Model;
+                //}
                 string Wcno = "";
                 if (LineName == "5")
                 {
@@ -155,17 +156,17 @@ namespace DCI_UKEHARAI_INVENTORY_API
             sqlMainL6.Parameters.Add(new SqlParameter("@StartDate", startDate));
             sqlMainL6.Parameters.Add(new SqlParameter("@EndDate", endDate));
             DataTable dtMainL6 = DBIOTFAC3.Query(sqlMainL6);
-            foreach (DataRow dr in dtMainL5.Rows)
+            foreach (DataRow dr in dtMainL6.Rows)
             {
                 MMainResult itemMain = new MMainResult();
-                string LineName = dr["LineName"].ToString();
+                //string LineName = dr["LineName"].ToString();
                 string ModelCode = dr["Model_No"].ToString();
                 string ModelName = "";
-                var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                if (FindModelName != null)
-                {
-                    ModelName = FindModelName.Model;
-                }
+                //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
+                //if (FindModelName != null)
+                //{
+                //    ModelName = FindModelName.Model;
+                //}
                 string Wcno = "906";
                 itemMain.LineName = Wcno;
                 itemMain.Model_No = ModelCode;
@@ -206,11 +207,11 @@ namespace DCI_UKEHARAI_INVENTORY_API
                     string LineName = dr["LineName"].ToString();
                     string ModelCode = dr["Model_No"].ToString();
                     string ModelName = "";
-                    var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                    if (FindModelName != null)
-                    {
-                        ModelName = FindModelName.Model;
-                    }
+                    //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
+                    //if (FindModelName != null)
+                    //{
+                    //    ModelName = FindModelName.Model;
+                    //}
                     string Wcno = "";
                     if (LineName == "7")
                     {
@@ -247,20 +248,20 @@ namespace DCI_UKEHARAI_INVENTORY_API
             sqlSelectLine8.Parameters.Add(new SqlParameter("@StartDate", startDate));
             sqlSelectLine8.Parameters.Add(new SqlParameter("@EndDate", endDate));
             sqlSelectLine8.CommandTimeout = 180;
-            DataTable dtSerialLine8 = DBIOT.Query(sqlSelectLine8);
+            DataTable dtSerialLine8 = DBIOTL8.Query(sqlSelectLine8);
             if (dtSerialLine8.Rows.Count > 0)
             {
                 foreach (DataRow dr in dtSerialLine8.Rows)
                 {
                     MMainResult itemMain = new MMainResult();
-                    string LineName = dr["LineName"].ToString();
+                    //string LineName = dr["LineName"].ToString();
                     string ModelCode = dr["Model_No"].ToString();
                     string ModelName = "";
-                    var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                    if (FindModelName != null)
-                    {
-                        ModelName = FindModelName.Model;
-                    }
+                    //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
+                    //if (FindModelName != null)
+                    //{
+                    //    ModelName = FindModelName.Model;
+                    //}
                     string Wcno = "908";
                     itemMain.LineName = Wcno;
                     itemMain.Model_No = ModelCode;
@@ -298,10 +299,10 @@ namespace DCI_UKEHARAI_INVENTORY_API
             {
                 MMainResult itemMain = new MMainResult();
                 string ModelName = dr["Model"]!.ToString();
-                string ModelCode = rPnCompressor.FirstOrDefault(x => x.Model == ModelName).ModelCode;
+                //string ModelCode = rPnCompressor.FirstOrDefault(x => x.Model == ModelName).ModelCode;
                 string Wcno = "904";
                 itemMain.LineName = Wcno;
-                itemMain.Model_No = ModelCode;
+                //itemMain.Model_No = ModelCode;
                 itemMain.ModelName = ModelName;
                 itemMain.shiftDate = dr["PRD_DATE"].ToString();
                 itemMain.cnt = int.Parse(dr["CNT"]!.ToString());
@@ -315,10 +316,29 @@ namespace DCI_UKEHARAI_INVENTORY_API
                 y.Key.LineName,
                 y.Key.Model_No,
                 y.Key.shiftDate,
-                ModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == y.Key.Model_No)!.Model,
+                //ModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == y.Key.Model_No)!.Model,
                 cnt = y.Sum(x => x.cnt)
             }).ToList();
             return rMainResult;
+        }
+
+        internal List<PnCompressor> getModels()
+        {
+            List<PnCompressor> res = new List<PnCompressor>();
+            SqlCommand sql = new SqlCommand();
+            sql.CommandText = @"SELECT  ModelCode ,Model,SUBSTRING(ModelType,1,3) as ModelType FROM [dbSCM].[dbo].[PN_Compressor]
+  WHERE Status = 'ACTIVE' AND ModelType NOT IN ('PACKING','SPECIAL') AND LEN(ModelType) >= 3
+ GROUP BY ModelCode,Model,ModelType ORDER BY Model ";
+            DataTable dt = DBSCM.Query(sql);
+            foreach (DataRow dr in dt.Rows)
+            {
+                PnCompressor item = new PnCompressor();
+                item.ModelCode = dr["ModelCode"].ToString();
+                item.Model = dr["Model"].ToString();
+                item.ModelType = dr["ModelType"].ToString();
+                res.Add(item);
+            }
+            return res;
         }
     }
 }

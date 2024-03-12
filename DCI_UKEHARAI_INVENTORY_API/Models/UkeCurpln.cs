@@ -3,13 +3,13 @@ using System.Collections.Generic;
 
 namespace DCI_UKEHARAI_INVENTORY_API.Models;
 
-public partial class AlGsdCurpln
+public partial class UkeCurpln
 {
-    public int Wcno { get; set; }
-
     public string Prdym { get; set; } = null!;
 
     public string Model { get; set; } = null!;
+
+    public int Wcno { get; set; }
 
     public int Sebango { get; set; }
 
@@ -77,7 +77,11 @@ public partial class AlGsdCurpln
 
     public decimal? Day31 { get; set; }
 
-    public decimal? YmQty { get; set; }
+    public int? Rev { get; set; }
+
+    public int? Lrev { get; set; }
+
+    public decimal YmQty { get; set; }
 
     public DateTime? Cdate { get; set; }
 
@@ -85,7 +89,5 @@ public partial class AlGsdCurpln
 
     public DateTime? DataDate { get; set; }
 
-    public int? Rev { get; set; }
-
-    public int? Lrev { get; set; }
+    public int? RowNum { get; set; }
 }

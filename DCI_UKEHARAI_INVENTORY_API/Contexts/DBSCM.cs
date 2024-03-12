@@ -16,6 +16,8 @@ public partial class DBSCM : DbContext
     {
     }
 
+    public virtual DbSet<AlCustomer> AlCustomers { get; set; }
+
     public virtual DbSet<AlGsdActpln> AlGsdActplns { get; set; }
 
     public virtual DbSet<AlGsdCurpln> AlGsdCurplns { get; set; }
@@ -24,7 +26,11 @@ public partial class DBSCM : DbContext
 
     public virtual DbSet<AlSaleForecaseMonth> AlSaleForecaseMonths { get; set; }
 
+    public virtual DbSet<EkbWipPartStock> EkbWipPartStocks { get; set; }
+
     public virtual DbSet<PnCompressor> PnCompressors { get; set; }
+
+    public virtual DbSet<UkeCurpln> UkeCurplns { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see http://go.microsoft.com/fwlink/?LinkId=723263.
@@ -33,6 +39,22 @@ public partial class DBSCM : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.UseCollation("Thai_CI_AS");
+
+        modelBuilder.Entity<AlCustomer>(entity =>
+        {
+            entity.HasKey(e => e.CustomerCode);
+
+            entity.ToTable("AL_Customer");
+
+            entity.Property(e => e.CustomerCode).HasMaxLength(50);
+            entity.Property(e => e.Address1).HasMaxLength(50);
+            entity.Property(e => e.Address2).HasMaxLength(50);
+            entity.Property(e => e.Address3).HasMaxLength(50);
+            entity.Property(e => e.Country).HasMaxLength(50);
+            entity.Property(e => e.CustomerName).HasMaxLength(100);
+            entity.Property(e => e.CustomerNameShort).HasMaxLength(100);
+            entity.Property(e => e.ShipCode).HasMaxLength(50);
+        });
 
         modelBuilder.Entity<AlGsdActpln>(entity =>
         {
@@ -184,6 +206,12 @@ public partial class DBSCM : DbContext
             entity.Property(e => e.Day31)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("DAY31");
+            entity.Property(e => e.Lrev)
+                .HasDefaultValueSql("((1))")
+                .HasColumnName("LREV");
+            entity.Property(e => e.Rev)
+                .HasDefaultValueSql("((1))")
+                .HasColumnName("REV");
             entity.Property(e => e.Salmodel)
                 .HasMaxLength(50)
                 .HasColumnName("SALMODEL");
@@ -283,6 +311,42 @@ public partial class DBSCM : DbContext
                 .HasColumnName("YM");
         });
 
+        modelBuilder.Entity<EkbWipPartStock>(entity =>
+        {
+            entity.HasKey(e => new { e.Ym, e.Wcno, e.Partno, e.Cm }).HasName("PK_EKB_LINE_STOCK_MONIOTR");
+
+            entity.ToTable("EKB_WIP_Part_Stock");
+
+            entity.Property(e => e.Ym)
+                .HasMaxLength(8)
+                .HasColumnName("YM");
+            entity.Property(e => e.Wcno)
+                .HasMaxLength(3)
+                .HasColumnName("WCNO");
+            entity.Property(e => e.Partno)
+                .HasMaxLength(20)
+                .HasColumnName("PARTNO");
+            entity.Property(e => e.Cm)
+                .HasMaxLength(2)
+                .HasColumnName("CM");
+            entity.Property(e => e.Bal)
+                .HasColumnType("decimal(18, 4)")
+                .HasColumnName("BAL");
+            entity.Property(e => e.Issqty)
+                .HasColumnType("decimal(18, 4)")
+                .HasColumnName("ISSQTY");
+            entity.Property(e => e.Lbal)
+                .HasColumnType("decimal(18, 4)")
+                .HasColumnName("LBAL");
+            entity.Property(e => e.PartDesc).HasMaxLength(250);
+            entity.Property(e => e.Ptype).HasMaxLength(15);
+            entity.Property(e => e.Recqty)
+                .HasColumnType("decimal(18, 4)")
+                .HasColumnName("RECQTY");
+            entity.Property(e => e.UpdateBy).HasMaxLength(50);
+            entity.Property(e => e.UpdateDate).HasColumnType("datetime");
+        });
+
         modelBuilder.Entity<PnCompressor>(entity =>
         {
             entity.HasKey(e => new { e.ModelCode, e.Model, e.Line });
@@ -337,6 +401,171 @@ public partial class DBSCM : DbContext
                 .HasDefaultValueSql("(N'active')");
             entity.Property(e => e.UpdateBy).HasMaxLength(20);
             entity.Property(e => e.UpdateDate).HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<UkeCurpln>(entity =>
+        {
+            entity.HasKey(e => new { e.Prdym, e.Model, e.Wcno, e.Sebango });
+
+            entity.ToTable("UKE_CURPLN");
+
+            entity.Property(e => e.Prdym)
+                .HasMaxLength(6)
+                .HasColumnName("PRDYM");
+            entity.Property(e => e.Model)
+                .HasMaxLength(50)
+                .HasColumnName("MODEL");
+            entity.Property(e => e.Wcno).HasColumnName("WCNO");
+            entity.Property(e => e.Sebango).HasColumnName("SEBANGO");
+            entity.Property(e => e.Cdate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("CDATE");
+            entity.Property(e => e.DataDate)
+                .HasColumnType("datetime")
+                .HasColumnName("dataDate");
+            entity.Property(e => e.Day01)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY01");
+            entity.Property(e => e.Day02)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY02");
+            entity.Property(e => e.Day03)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY03");
+            entity.Property(e => e.Day04)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY04");
+            entity.Property(e => e.Day05)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY05");
+            entity.Property(e => e.Day06)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY06");
+            entity.Property(e => e.Day07)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY07");
+            entity.Property(e => e.Day08)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY08");
+            entity.Property(e => e.Day09)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY09");
+            entity.Property(e => e.Day10)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY10");
+            entity.Property(e => e.Day11)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY11");
+            entity.Property(e => e.Day12)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY12");
+            entity.Property(e => e.Day13)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY13");
+            entity.Property(e => e.Day14)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY14");
+            entity.Property(e => e.Day15)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY15");
+            entity.Property(e => e.Day16)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY16");
+            entity.Property(e => e.Day17)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY17");
+            entity.Property(e => e.Day18)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY18");
+            entity.Property(e => e.Day19)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY19");
+            entity.Property(e => e.Day20)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY20");
+            entity.Property(e => e.Day21)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY21");
+            entity.Property(e => e.Day22)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY22");
+            entity.Property(e => e.Day23)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY23");
+            entity.Property(e => e.Day24)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY24");
+            entity.Property(e => e.Day25)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY25");
+            entity.Property(e => e.Day26)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY26");
+            entity.Property(e => e.Day27)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY27");
+            entity.Property(e => e.Day28)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY28");
+            entity.Property(e => e.Day29)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY29");
+            entity.Property(e => e.Day30)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY30");
+            entity.Property(e => e.Day31)
+                .HasDefaultValueSql("((0))")
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("DAY31");
+            entity.Property(e => e.Lrev)
+                .HasDefaultValueSql("((1))")
+                .HasColumnName("LREV");
+            entity.Property(e => e.Rev)
+                .HasDefaultValueSql("((1))")
+                .HasColumnName("REV");
+            entity.Property(e => e.RowNum).HasDefaultValueSql("((0))");
+            entity.Property(e => e.Salmodel)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("('')")
+                .HasColumnName("SALMODEL");
+            entity.Property(e => e.Udate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("UDATE");
+            entity.Property(e => e.YmQty)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("YM_QTY");
         });
 
         OnModelCreatingPartial(modelBuilder);
