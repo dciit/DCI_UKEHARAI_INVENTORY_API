@@ -15,6 +15,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Controllers
         private readonly DBSCM _DBSCM;
         private readonly DBBCS _DBBCS;
         private OraConnectDB _ALPHAPD = new OraConnectDB("ALPHAPD");
+        private OraConnectDB _ALPHAPD1 = new OraConnectDB("ALPHA01");
         private OraConnectDB _ALPHAPD2 = new OraConnectDB("ALPHA02");
         private SqlConnectDB _SQLSCM = new SqlConnectDB("dbSCM");
         //private ConnectDB _DBSCM_SQL = new ConnectDB("DBSCM");
@@ -286,6 +287,77 @@ namespace DCI_UKEHARAI_INVENTORY_API.Controllers
         }
 
         [HttpPost]
+        [Route("/getUkeharaiGroupModel")]
+        public IActionResult getUkeharaiGroupModel([FromBody] MParam param)
+        {
+            List<MGetUkeharaiGroupModel> rRes = new List<MGetUkeharaiGroupModel>();
+            string ym = param.ym;
+            int yyyy = Convert.ToInt32(ym.Substring(0, 4));
+            int mm = Convert.ToInt32(ym.Substring(4, 2));
+            DateTime dtStart = new DateTime(yyyy, mm, 01);
+            DateTime dtEnd = new DateTime(yyyy, mm, DateTime.DaysInMonth(yyyy, mm));
+            List<string> rModelGroup = new List<string>() { "1YC", "2YC", "SCR", "ODM" };
+
+            // (##) ------- GET CURPLN 
+            List<AlGsdCurpln> rCurrentPlan = _DBSCM.AlGsdCurplns.Where(x => x.Prdym == ym).ToList();
+            var rCurPlnOfGroupModel = rCurrentPlan.Select(x => new
+            {
+                line = x.Wcno,
+                x.Model,
+                x.Sebango,
+                x.Prdym,
+                modelGroup = (x.Model.Substring(0, 1) == "1" || x.Model.Substring(0, 1) == "2") ? (x.Model.Substring(0, 1) + "YC") : (x.Model.Substring(0, 1) == "J" ? "SCR" : "ODM")
+            }).ToList();
+            // (##) ------- END
+
+            // (##) ------- GET SALS FORECASE 
+            List<AlSaleForecaseMonth> rSales = _DBSCM.AlSaleForecaseMonths.Where(x => x.Ym == ym && (x.Rev == x.Lrev || x.Lrev == "999")).ToList();
+            // (##) ------- END
+
+
+            foreach (string oModelGroup in rModelGroup)
+            {
+                MGetUkeharaiGroupModel iRes = new MGetUkeharaiGroupModel();
+                List<MLineItem> mLineItems = new List<MLineItem>();
+                List<string> rLineOfModelGroup = rCurPlnOfGroupModel.Where(x => x.modelGroup == oModelGroup).ToList().Select(x => x.line.ToString()).Distinct().ToList();
+                foreach (string iLine in rLineOfModelGroup)
+                {
+                    MLineItem oLineItem = new MLineItem();
+                    List<MGroupModelItem> rSaleGroup = new List<MGroupModelItem>();
+                    oLineItem.line = iLine;
+                    DateTime dtLoop = dtStart;
+                    string dd = dtLoop.ToString("dd");
+                    while (dtLoop < dtEnd.AddDays(1))
+                    {
+                        try
+                        {
+                            MGroupModelItem oSale = new MGroupModelItem();
+                            oSale.date = dtLoop.ToString("yyyyMMdd");
+                            List<AlSaleForecaseMonth> oSaleOfDay = rSales.Where(x => x.Ym == ym && x.Lrev == "999" && x.ModelName != "" && serv.getModelGroup(x.ModelName) == oModelGroup).ToList();
+                            if (oSaleOfDay.Count > 0)
+                            {
+                                oSale.qty = oSaleOfDay.Sum(x => Convert.ToInt32(x.GetType().GetProperty($"D{dd}").GetValue(x).ToString())).ToString();
+                            }
+                            rSaleGroup.Add(oSale);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e.Message);
+                        }
+                        dtLoop = dtLoop.AddDays(1);
+                    }
+                    oLineItem.sale = rSaleGroup;
+                    mLineItems.Add(oLineItem);
+                }
+                iRes.groupModel = oModelGroup;
+                iRes.line = mLineItems;
+                rRes.Add(iRes);
+            }
+
+            return Ok(rRes);
+        }
+
+        [HttpPost]
         [Route("/plan/get")]
         public async Task<IActionResult> UkeharaiContent([FromBody] MParam param)
         {
@@ -377,14 +449,14 @@ GROUP BY W.YM, W.MODEL";
 
             List<MHoldInventory> oHoldInventory = new List<MHoldInventory>();
             OracleCommand strHoldInventory = new OracleCommand();
-            strHoldInventory.CommandText = @"SELECT W.YM, W.WC, 
+            strHoldInventory.CommandText = @"SELECT W.YM ,
    W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, 
    SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
 FROM SE.WMS_STKBAL W
 WHERE comid= 'DCI' and ym = :YM
-  and wc in ('HWH')
+  and wc in ('HWH','RWQ')
 and balstk > 0
-GROUP BY W.YM, W.WC, W.MODEL";
+GROUP BY W.YM,  W.MODEL";
             // RWQ
             strHoldInventory.Parameters.Add(new OracleParameter(":YM", (year + "" + month)));
             DataTable dtHoldInventory = _ALPHAPD.Query(strHoldInventory);
@@ -392,7 +464,7 @@ GROUP BY W.YM, W.WC, W.MODEL";
             {
                 MHoldInventory iLastInventory = new MHoldInventory();
                 iLastInventory.ym = dr["YM"].ToString();
-                iLastInventory.wc = dr["WC"].ToString();
+                //iLastInventory.wc = dr["WC"].ToString();
                 iLastInventory.model = dr["MODEL"].ToString();
                 iLastInventory.balstk = dr["BALSTK"].ToString();
                 iLastInventory.lbalstk = dr["LBALSTK"].ToString();
@@ -443,13 +515,28 @@ order by model";
             }
             //end
 
+            // (##) GET AREA GST_SALMDL
+            List<GstSalMdl> rGstSalMdl = new List<GstSalMdl>();
+            OracleCommand strGstSalMdl = new OracleCommand();
+            strGstSalMdl.CommandText = @"SELECT G.AREA SKU, G.MODL_NM MODELNAME  FROM PLAN.GST_SALMDL G where lrev = '999'";
+            DataTable dtGstSalMdl = _ALPHAPD1.Query(strGstSalMdl);
+            foreach (DataRow drGstSalMdl in dtGstSalMdl.Rows)
+            {
+                GstSalMdl oGstSalMdl = new GstSalMdl();
+                string modelName = drGstSalMdl["MODELNAME"].ToString();
+                string sku = drGstSalMdl["SKU"].ToString();
+                oGstSalMdl.modelName = modelName;
+                oGstSalMdl.sku = sku;
+                rGstSalMdl.Add(oGstSalMdl);
+            }
+            // END 
+
 
             //List<>
             List<PnCompressor> rModel = serv.getModels();
             List<string> rModelType = rModel.Select(x => x.ModelType).ToList();
             List<AlSaleForecaseMonth> ListSaleForecast = _DBSCM.AlSaleForecaseMonths.Where(x => x.Ym == ym && (x.Rev == x.Lrev || x.Lrev == "999")).ToList();
             List<AlGsdCurpln> rCurrentPlan = _DBSCM.AlGsdCurplns.Where(x => x.Prdym == ym).ToList();
-            //List<AlGsdActpln> rResultFinal = _DBSCM.AlGsdActplns.Where(x => x.DataType == "9" && x.Prdymd!.Contains(ym)).ToList();
             List<DstWipPrd> rResultFinal = new List<DstWipPrd>();
             OracleCommand strGetResultFinal = new OracleCommand();
             strGetResultFinal.CommandText = @"select prdymd,wcno,model,sum(qty) as QTY  from dst_wippdr where prdymd like '" + ym + "%' and lrev = 999  group by prdymd,wcno,model";
@@ -466,36 +553,31 @@ order by model";
             List<string> ListPltype = new List<string>();
             List<EkbWipPartStock> listEkbInventoryMain = _DBSCM.EkbWipPartStocks.Where(x => x.Ym == ymLastInventory && x.Ptype == "MAIN").ToList();
             List<string> rGroupModel = new List<string>();
-            // MANUAL SALE FORECASE
-            //            List<MSaleForecasePivot> rSaleForecase = new List<MSaleForecasePivot>();
-            //            SqlCommand strSaleForecase = new SqlCommand();
-            //            strSaleForecase.CommandText = @"SELECT ModelName,DayStr,QTY,PLTYPE,Customer FROM [dbSCM].[dbo].[AL_SaleForecaseMonth] 
-            //unpivot(QTY for DayStr in (D01,D02,D03,D04,D05,D06,D07,D08,D09,D10,D11,D12,D13,D14,D15,D16,D17,D18,D19,D20,D21,D22,D23,D24,D25,D26,D27,D28,D29,D30,D31))
-            //unpiv  WHERE  YM = :YM AND LREV = 999";
-            //            strSaleForecase.Parameters.Add(new SqlParameter(":YM", ym));
-            //            DataTable dtSaleForecase = _SQLSCM.Query(strSaleForecase);
-            //            foreach (DataRow dr in dtSaleForecase.Rows)
-            //            {
-            //                MSaleForecasePivot iSaleForecase = new MSaleForecasePivot();
-            //                iSaleForecase.Model = dr["ModelName"].ToString();
-            //                iSaleForecase.DayStr = dr["DayStr"].ToString();
-            //                iSaleForecase.Qty = Convert.ToDouble(dr["QTY"].ToString());
-            //                iSaleForecase.Pltype = dr["PLTYPE"].ToString();
-            //                iSaleForecase.Customer = dr["Customer"].ToString();
-            //                rSaleForecase.Add(iSaleForecase);
-            //            }
-            // END
 
             List<PnCompressor> rModelDetail = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
-
+            DateTime dtNow = DateTime.Now;
             if (ym != "")
             {
                 //List<string> rModel = rCurrentPlan.Select(x => x.Model).Distinct().ToList();
                 foreach (string oModel in rModel.Select(o => o.Model).Distinct())
                 {
+                    string modelGroup = oModel.Substring(0, 1);
+                    if (modelGroup == "1" || modelGroup == "2")
+                    {
+                        modelGroup = modelGroup + "YC";
+                    }
+                    else if (modelGroup == "J")
+                    {
+                        modelGroup = "SCR";
+                    }
+                    else
+                    {
+                        modelGroup = "ODM";
+                    }
                     string sebango = rModelDetail.FirstOrDefault(x => x.Model == oModel) != null ? rModelDetail.FirstOrDefault(x => x.Model == oModel).ModelCode : "";
                     MActual oResponse = new MActual();
                     oResponse.ym = ym;
+                    oResponse.modelGroup = modelGroup;
                     oResponse.model = oModel;
                     oResponse.sebango = sebango;
                     oResponse.modelCode = sebango;
@@ -542,11 +624,68 @@ order by model";
                     double nLastInventory = (rLastInventory.Count > 0) ? Convert.ToDouble(rLastInventory.FirstOrDefault().balstk) : 0;
                     oResponse.LastInventory = nLastInventory;
 
-                    //if (oModel == "2Y147BKBX1A#A")
-                    //{
-                    //    Console.WriteLine("123");
-                    //}
+                    // (##) GROUP PLTYPE OF INVENTORY 
+                    List<MCntOfPltype> GroupPltype = allInventory.Where(x => x.model == oModel.Trim()).ToList().Select(g => new MCntOfPltype()
+                    {
+                        pltype = g.pltype,
+                        cnt = Convert.ToInt32(g.cnt)
+                    }).ToList();
+                    foreach (MCntOfPltype pltype in GroupPltype)
+                    {
+                        DateTime dtLoopPltype = dtNow;
+                        double nStartInvBalancePltype = Convert.ToDouble(GroupPltype.Where(x => x.pltype == pltype.pltype).Sum(y => y.cnt));
+                        InventoryBalancePltype oInventoryBalancePltype = new InventoryBalancePltype();
+                        oInventoryBalancePltype.pltype = pltype.pltype;
+                        oInventoryBalancePltype.modelName = oModel.Trim();
+                        List<InventoryBalancePltypeData> rInventoryBalancePltypeData = new List<InventoryBalancePltypeData>();
+                        while (dtLoopPltype.Date < new DateTime(dtNow.Year, dtNow.Month, DateTime.DaysInMonth(dtNow.Year, dtNow.Month)).AddDays(1))
+                        {
+                            double oSaleOfPltypePerDay = rSaleForecase.Where(x => x.Pltype == pltype.pltype).Sum(y => Convert.ToDouble(y.GetType().GetProperty("D" + dtLoopPltype.ToString("dd")).GetValue(y).ToString()));
+                            nStartInvBalancePltype = nStartInvBalancePltype - oSaleOfPltypePerDay;
+                            rInventoryBalancePltypeData.Add(new InventoryBalancePltypeData()
+                            {
+                                date = dtLoopPltype.ToString("yyyyMMdd"),
+                                value = nStartInvBalancePltype
+                            });
+                            dtLoopPltype = dtLoopPltype.AddDays(1);
+                        }
+                        oInventoryBalancePltype.data = rInventoryBalancePltypeData;
+                        oResponse.InventoryBalancePltype.Add(oInventoryBalancePltype);
+                    }
 
+
+                    // SELECT GROUP
+                    List<InventoryBalancePltype> rInventoryBalancePltype = new List<InventoryBalancePltype>();
+
+                    // (##) CAL TOTAL INVERNTORY BALANCE
+                    List<InventoryBalance> rInventoryBalance = new List<InventoryBalance>();
+                    double TotalInventory = allInventory.Where(x => x.model == oModel.Trim()).Sum(x => Convert.ToInt32(x.cnt));
+                    DateTime dtLoop = dtNow;
+                    while (dtLoop.Date < new DateTime(dtNow.Year, dtNow.Month, DateTime.DaysInMonth(dtNow.Year, dtNow.Month)).AddDays(1))
+                    {
+                        InventoryBalance iInventoryBalance = new InventoryBalance();
+                        // (##) GET SALE OF DAY
+                        double iSaleOfDay = rSaleForecase.Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+                        TotalInventory = TotalInventory - iSaleOfDay;
+                        iInventoryBalance.value = TotalInventory;
+                        iInventoryBalance.date = dtLoop.ToString("yyyyMMdd");
+                        rInventoryBalance.Add(iInventoryBalance);
+                        dtLoop = dtLoop.AddDays(1);
+
+
+                        foreach (MCntOfPltype pltype in GroupPltype)
+                        {
+                            // (##) SET INVENTORY BY PLTYPE
+                            InventoryBalancePltype oInventoryBalancePltype = new InventoryBalancePltype();
+                            oInventoryBalancePltype.pltype = pltype.pltype;
+                            oInventoryBalancePltype.modelName = oModel.Trim();
+                            int oSaleOfPltype = rSaleForecase.Where(x => x.Pltype == pltype.pltype).Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+
+                            //allInventory.Where(x => x.model == oModel.Trim() && x.pltype == pltype.pltype).Sum(x => Convert.ToInt32(x.cnt));
+
+                        }
+                    }
+                    oResponse.InventoryBalance = rInventoryBalance;
 
                     // (8) RESULT MAIN
                     oResponse.listActMain = mMainResult.Where(x => x.Model_No == sebango || x.ModelName == oModel.Trim()).ToList();
@@ -570,111 +709,15 @@ order by model";
                             });
                         }
                     }
+                    // (11) GET SBU (AREATYPE) OF SBU ARRAY
+                    oResponse.sbu = "";
+                    GstSalMdl oSBU = rGstSalMdl.FirstOrDefault(z => z.modelName == oModel.Trim());
+                    if (oSBU != null)
+                    {
+                        oResponse.sbu = oSBU.sku;
+                    }
                     oResponse.listActFinal = itemFinal;
                     response.Add(oResponse);
-                    //new MActual()
-                    //{
-                    //    ym = ym,
-                    //    //wcno = oWcno!.Value.ToString(),
-                    //    wcno = oWcno.ToString(),
-                    //    model = oModel,
-                    //    sebango = sebango,
-                    //    listCurpln = itemCurrentPlan,
-                    //    listActPln = itemFinal.OrderBy(x => x.Prdymd).ToList(),
-                    //    listActMain = mMainResult.Where(x => x.Model_No == sebango).ToList(),
-                    //    listSaleForecast = rSaleForecase,
-                    //    listInbound = listInbound.OrderBy(x => x.astDate).ToList(),
-                    //    listPltype = listPltype.Where(x => x.model.Trim() == oModel.Trim()).Select(x => x.pltype).ToList(),
-                    //    listInventory = listInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList(),
-                    //    listLastInventory = oLastInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList(),
-                    //    LastInventoryMain = listEkbInventoryMain.FirstOrDefault(x => x.Partno == oModel.Trim() && x.Wcno == oWcno.ToString()),
-                    //    LastInventory = nLastInventory,
-                    //    listHoldInventory = oHoldInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList(),
-                    //}
-
-
-                    //string sebango = "";
-                    //var modelDetail = _DBSCM.PnCompressors.Where(x => x.Model == oModel).FirstOrDefault();
-                    //if (modelDetail != null)
-                    //{
-                    //    sebango = modelDetail.ModelCode;
-                    //}
-
-                    //List<AlGsdActpln> itemFinal = new List<AlGsdActpln>();
-                    //AlGsdCurpln itemCurrentPlan = new AlGsdCurpln();
-                    //AlGsdCurpln resultCurrentPlan = ListCurrentPlan.Where(x => x.Model == oModel).FirstOrDefault(x => x.Wcno == oWcno);
-                    //if (resultCurrentPlan != null)
-                    //{
-                    //    itemCurrentPlan = resultCurrentPlan;
-                    //}
-                    //var plans = items.Where(x => x.Wcno == oWcno && x.Model == oModel).ToList();
-                    //foreach (var itemPlan in plans)
-                    //{
-                    //    itemFinal.Add(new AlGsdActpln()
-                    //    {
-                    //        Model = oModel,
-                    //        Wcno = oWcno,
-                    //        Qty = itemPlan.Qty,
-                    //        Prdymd = itemPlan.Prdymd!.Substring(itemPlan.Prdymd.Length - 2),
-                    //    });
-                    //}
-                    //foreach (MInbound oInbound in mInbounds.Where(x => x.model == oModel).ToList())
-                    //{
-                    //    listInbound.Add(oInbound);
-                    //}
-                    //ListPltype = listInbound.Select(x => x.pltype).ToList();
-
-                    //List<MMainResult> rListResultMain = mMainResult.Where(x => x.Model_No == sebango).ToList();
-                    //EkbWipPartStock oLastInventoryMain = listEkbInventoryMain.FirstOrDefault(x => x.Partno == oModel.Trim() && x.Wcno == oWcno.ToString());
-                    //decimal? nLastInventoryMain = 0;
-                    //if (oLastInventoryMain != null)
-                    //{
-                    //    nLastInventoryMain = oLastInventoryMain.Bal;
-                    //}
-                    //List<EkbWipPartStock> rInventoryMain = new List<EkbWipPartStock>();
-                    //for (int i = 1; i <= 31; i++)
-                    //{
-                    //    double nResultMainOfDay = 0;
-                    //    double nInventoryBold = 0;
-                    //    double nSaleOfDay = 0;
-                    //    // IF วันที่ 1 = ((Inventory Main - 1 เดือน) - SaleForecaseOfDay), ELSE 2-31 : ((Balance + ResultMainOfDay + Inventory (Hold)) - SaleForecaseOfDay) 
-                    //    if (i == 1)
-                    //    {
-                    //        //nSaleOfDay = rSaleForecase.FirstOrDefault(x => x.pa)
-                    //        //nLastInventoryMain = nLastInventoryMain - 
-                    //    }
-                    //    else
-                    //    {
-
-                    //    }
-                    //    //rInventoryMain.Add();
-                    //}
-                    //List<MLastInventory> rLastInventory = oLastInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList();
-                    //double nLastInventory = (rLastInventory.Count > 0) ? Convert.ToDouble(rLastInventory.FirstOrDefault().balstk) : 0;
-                    //response.Add(new MActual()
-                    //{
-                    //    ym = ym,
-                    //    //wcno = oWcno!.Value.ToString(),
-                    //    wcno = oWcno.ToString(),
-                    //    model = oModel,
-                    //    sebango = sebango,
-                    //    listCurpln = itemCurrentPlan,
-                    //    listActPln = itemFinal.OrderBy(x => x.Prdymd).ToList(),
-                    //    listActMain = mMainResult.Where(x => x.Model_No == sebango).ToList(),
-                    //    listSaleForecast = rSaleForecase,
-                    //    listInbound = listInbound.OrderBy(x => x.astDate).ToList(),
-                    //    listPltype = listPltype.Where(x => x.model.Trim() == oModel.Trim()).Select(x => x.pltype).ToList(),
-                    //    listInventory = listInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList(),
-                    //    listLastInventory = oLastInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList(),
-                    //    LastInventoryMain = listEkbInventoryMain.FirstOrDefault(x => x.Partno == oModel.Trim() && x.Wcno == oWcno.ToString()),
-                    //    LastInventory = nLastInventory,
-                    //    listHoldInventory = oHoldInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList(),
-                    //});
-                    //listInbound.Clear();
-                    //foreach (int oWcno in rWcno)
-                    //{
-
-                    //}
                 }
             }
 

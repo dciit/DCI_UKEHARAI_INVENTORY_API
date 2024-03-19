@@ -340,5 +340,23 @@ namespace DCI_UKEHARAI_INVENTORY_API
             }
             return res;
         }
+
+        public string getModelGroup(string modelName = "")
+        {
+            string modelGroup = "";
+            if (modelName.Substring(0, 1) == "1" || modelName.Substring(0, 1) == "2")
+            {
+                modelGroup = modelName.Substring(0, 1) + "YC";
+            }
+            else if (modelName.Substring(0, 1) == "J")
+            {
+                modelGroup = "SCR";
+            }
+            else
+            {
+                modelGroup = "ODM";
+            }
+            return "1YC";
+        }
     }
 }

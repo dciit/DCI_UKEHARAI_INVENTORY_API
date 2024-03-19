@@ -1,7 +1,11 @@
-﻿namespace DCI_UKEHARAI_INVENTORY_API.Models
+﻿using System.Diagnostics;
+
+namespace DCI_UKEHARAI_INVENTORY_API.Models
 {
     public class MActual
     {
+        public string? modelGroup { get; set; }
+        public string? sbu { get; set; }
         public string? ym { get; set; }
         public string? model { get; set; }
         public string? modelCode { get; set; }
@@ -64,6 +68,25 @@
         public List<MHoldInventory> listHoldInventory { get; set; } = new List<MHoldInventory>();
         public List<MHoldInventory> listPDTInventory { get; set; } = new List<MHoldInventory>();
         public double LastInventory { get; set; } = 0;
-        public List<string> listGroupModel { get; set; } = new List<string>();   
+        public List<InventoryBalance> InventoryBalance { get; set; } = new List<InventoryBalance>();
+        public List<InventoryBalancePltype> InventoryBalancePltype { get; set; } = new List<InventoryBalancePltype>(); 
+        public List<string> listGroupModel { get; set; } = new List<string>();
+    }
+    public class InventoryBalancePltype
+    {
+        public string modelName {  get; set; }
+        public string pltype {  get; set; }
+        public List<InventoryBalancePltypeData> data { get; set; }
+    }
+    public class InventoryBalance
+    {
+        public double value { get; set; }
+        public string date { get; set; }
+    }
+
+    public class InventoryBalancePltypeData
+    {
+        public string date {  set; get; }
+        public double value { get; set; }
     }
 }
