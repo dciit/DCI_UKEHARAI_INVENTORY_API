@@ -1,6 +1,7 @@
 ﻿using DCI_UKEHARAI_INVENTORY_API.Contexts;
 using DCI_UKEHARAI_INVENTORY_API.Models;
 using Microsoft.Data.SqlClient;
+using Oracle.ManagedDataAccess.Client;
 using System.Data;
 using System.Security.Cryptography;
 
@@ -15,6 +16,9 @@ namespace DCI_UKEHARAI_INVENTORY_API
         SqlConnectDB DBIOTL8 = new SqlConnectDB("dbIoTL8");
         SqlConnectDB DBSCM = new SqlConnectDB("dbSCM");
         SqlConnectDB DBHRM = new SqlConnectDB("dbHRM");
+        private OraConnectDB _ALPHAPD = new OraConnectDB("ALPHAPD");
+        private OraConnectDB _ALPHAPD1 = new OraConnectDB("ALPHA01");
+        private OraConnectDB _ALPHAPD2 = new OraConnectDB("ALPHA02");
         //private readonly DBIOT2 _DBIOT2;
         public Service(DBSCM dBSCM)
         {
@@ -357,6 +361,47 @@ namespace DCI_UKEHARAI_INVENTORY_API
                 modelGroup = "ODM";
             }
             return "1YC";
+        }
+
+        internal List<MInventory> GetInventory()
+        {
+            List<MInventory> res = new List<MInventory>();
+            OracleCommand str = new OracleCommand();
+            str.CommandText = @"select model, pltype, count(serial) cnt,to_char(current_date,'YYYY-MM-DD') as currentDate
+from fh001 
+where comid='DCI' and nwc in ('DCI','SKO')  
+  and locacode like '%'
+group by model, pltype
+order by model";
+            DataTable dt = _ALPHAPD.Query(str);
+            foreach (DataRow dr in dt.Rows)
+            {
+                MInventory item = new MInventory();
+                item.model = dr["model"].ToString();
+                item.date = dr["currentDate"].ToString();
+                item.pltype = dr["pltype"].ToString();
+                item.cnt = dr["cnt"].ToString();
+                res.Add(item);
+            }
+            return res;
+        }
+
+        internal List<GstSalMdl> GetSKU()
+        {
+            List<GstSalMdl> rGstSalMdl = new List<GstSalMdl>();
+            OracleCommand strGstSalMdl = new OracleCommand();
+            strGstSalMdl.CommandText = @"SELECT G.AREA SKU, G.MODL_NM MODELNAME  FROM PLAN.GST_SALMDL G where lrev = '999'";
+            DataTable dtGstSalMdl = _ALPHAPD1.Query(strGstSalMdl);
+            foreach (DataRow drGstSalMdl in dtGstSalMdl.Rows)
+            {
+                GstSalMdl oGstSalMdl = new GstSalMdl();
+                string modelName = drGstSalMdl["MODELNAME"].ToString();
+                string sku = drGstSalMdl["SKU"].ToString();
+                oGstSalMdl.modelName = modelName;
+                oGstSalMdl.sku = sku;
+                rGstSalMdl.Add(oGstSalMdl);
+            }
+            return rGstSalMdl;
         }
     }
 }

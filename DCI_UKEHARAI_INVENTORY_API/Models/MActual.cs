@@ -52,8 +52,8 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public double d29 { get; set; }
         public double d30 { get; set; }
         public double d31 { get; set; }
-
-
+        public bool warning {  get; set; } = false; // สำหรับหน้า Warning 1 = Inventory balance ติดลบ 
+        public List<MData> listInventoryPlanning { get; set; }
 
         public List<AlGsdActpln> listActFinal { get; set; } = new List<AlGsdActpln>();
         public List<AlGsdCurpln> listCurpln { get; set; } = new List<AlGsdCurpln>();
@@ -69,14 +69,21 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public List<MHoldInventory> listPDTInventory { get; set; } = new List<MHoldInventory>();
         public double LastInventory { get; set; } = 0;
         public List<InventoryBalance> InventoryBalance { get; set; } = new List<InventoryBalance>();
-        public List<InventoryBalancePltype> InventoryBalancePltype { get; set; } = new List<InventoryBalancePltype>(); 
+        public List<InventoryBalancePltype> InventoryBalancePltype { get; set; } = new List<InventoryBalancePltype>();
         public List<string> listGroupModel { get; set; } = new List<string>();
+        public List<MData> listSaleForeCaseAllCustomer {  get; set; } 
     }
     public class InventoryBalancePltype
     {
-        public string modelName {  get; set; }
-        public string pltype {  get; set; }
+        public string modelName { get; set; }
+        public string pltype { get; set; }
         public List<InventoryBalancePltypeData> data { get; set; }
+    }
+    public class MData
+    {
+        public string date { get; set; }
+        public double value { get; set; }
+        public string? customer {  get; set; }
     }
     public class InventoryBalance
     {
@@ -86,7 +93,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
 
     public class InventoryBalancePltypeData
     {
-        public string date {  set; get; }
+        public string date { set; get; }
         public double value { get; set; }
     }
 }

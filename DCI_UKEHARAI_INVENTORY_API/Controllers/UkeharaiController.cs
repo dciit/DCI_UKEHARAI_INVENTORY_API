@@ -4,7 +4,9 @@ using DCI_UKEHARAI_INVENTORY_API.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Oracle.ManagedDataAccess.Client;
+using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 
 namespace DCI_UKEHARAI_INVENTORY_API.Controllers
 {
@@ -515,6 +517,34 @@ order by model";
             }
             //end
 
+            // (##) GET OSW03 DELIVERY 
+            List<MOSW03Delivery> mOSW03Deliveries = new List<MOSW03Delivery>();
+            OracleCommand strGetDelivery = new OracleCommand();
+            strGetDelivery.CommandText = @"SELECT TO_CHAR(W.CFDATE, 'yyyyMMdd') CFDATE,
+   TO_CHAR(W.IFDATE, 'yyyyMMdd') IFDATE,  
+   W.MODEL, W.PLTYPE,   
+   SUM(W.QTY) QTY, 
+   SUM(W.ALQTY) ALQTY,   
+   SUM(W.PICQTY) PICQTY   
+FROM SE.WMS_DELCTN W
+WHERE W.CFBIT = 'F' AND W.IFBIT = 'F' AND TO_CHAR(W.CFDATE, 'yyyyMMdd') LIKE :YM 
+GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
+   TO_CHAR(W.IFDATE, 'yyyyMMdd') , W.MODEL, W.PLTYPE";
+            strGetDelivery.Parameters.Add(new OracleParameter(":YM", (year + "" + month + "%")));
+            DataTable dtDelivery = _ALPHAPD.Query(strGetDelivery);
+            foreach (DataRow dr in dtDelivery.Rows)
+            {
+                MOSW03Delivery oSW03Delivery = new MOSW03Delivery();
+                oSW03Delivery.model = dr["MODEL"].ToString();
+                oSW03Delivery.pltype = dr["PLTYPE"].ToString();
+                oSW03Delivery.cfdate = dr["CFDATE"].ToString();
+                oSW03Delivery.ifdate = dr["IFDATE"].ToString();
+                oSW03Delivery.qty = Convert.ToInt32(dr["QTY"].ToString());
+                oSW03Delivery.alqty = Convert.ToInt32(dr["ALQTY"].ToString());
+                oSW03Delivery.picqty = Convert.ToInt32(dr["PICQTY"].ToString());
+                mOSW03Deliveries.Add(oSW03Delivery);
+            }
+
             // (##) GET AREA GST_SALMDL
             List<GstSalMdl> rGstSalMdl = new List<GstSalMdl>();
             OracleCommand strGstSalMdl = new OracleCommand();
@@ -554,8 +584,21 @@ order by model";
             List<EkbWipPartStock> listEkbInventoryMain = _DBSCM.EkbWipPartStocks.Where(x => x.Ym == ymLastInventory && x.Ptype == "MAIN").ToList();
             List<string> rGroupModel = new List<string>();
 
+
+            List<string> rYM = new List<string>() { ym }; // สำหรับเอาไป contains saleforecase มากกว่า 1 m
+            for (int i = 1; i < 3; i++)
+            {
+                int y = int.Parse(rYM.LastOrDefault().Substring(0, 4));
+                int m = int.Parse(rYM.LastOrDefault().Substring(4, 2));
+                DateTime dtNext = new DateTime(y, m, 1);
+                rYM.Add(dtNext.AddMonths(i).ToString("yyyyMM"));
+            }
+
+            List<AlSaleForecaseMonth> rSaleForeCaseAlLCustomer = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == "999" && rYM.Contains(x.Ym)).ToList();
+
             List<PnCompressor> rModelDetail = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
-            DateTime dtNow = DateTime.Now;
+            DateTime dtNow = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            DateTime dtStart = DateTime.Now;
             if (ym != "")
             {
                 //List<string> rModel = rCurrentPlan.Select(x => x.Model).Distinct().ToList();
@@ -600,10 +643,11 @@ order by model";
 
                     // (3) INBOUND
                     List<MInbound> rInbound = mInbounds.Where(x => x.model == oModel).OrderBy(x => x.astDate).ToList();
-                    oResponse.listInbound = rInbound;
+                    //oResponse.listInbound = rInbound;
 
 
                     // (4) CURRENT PLAN
+                    List<AlGsdCurpln> rCurrentPlanOfModel = rCurrentPlan.Where(x => x.Model == oModel && x.Prdym == ym).ToList();
                     List<int> rWcno = rCurrentPlan.Where(x => x.Model == oModel).Select(x => x.Wcno).ToList();
                     foreach (int oWcno in rWcno)
                     {
@@ -657,34 +701,154 @@ order by model";
                     // SELECT GROUP
                     List<InventoryBalancePltype> rInventoryBalancePltype = new List<InventoryBalancePltype>();
 
+                    // (##) DECLARE VARAIBLE OF MODEL
+                    List<MData> rInventoryPlanning = new List<MData>();
+                    List<MData> rSaleAllCusOfModel = new List<MData>();
+
                     // (##) CAL TOTAL INVERNTORY BALANCE
                     List<InventoryBalance> rInventoryBalance = new List<InventoryBalance>();
                     double TotalInventory = allInventory.Where(x => x.model == oModel.Trim()).Sum(x => Convert.ToInt32(x.cnt));
                     DateTime dtLoop = dtNow;
+
+                    double sumAllInbound = 0; // ผลรวม Inbound ประจำวัน
+                    List<MInbound> resInbound = new List<MInbound>();
+                    double nInvPln = nLastInventory;
+                    if (oModel == "1Y056BCEX1G#A")
+                    {
+                        Console.WriteLine("123");
+                    }
+                    DateTime dtStartWarning = dtNow;
+                    DateTime dtEndWarning = dtNow.AddDays(10);
                     while (dtLoop.Date < new DateTime(dtNow.Year, dtNow.Month, DateTime.DaysInMonth(dtNow.Year, dtNow.Month)).AddDays(1))
                     {
-                        InventoryBalance iInventoryBalance = new InventoryBalance();
-                        // (##) GET SALE OF DAY
-                        double iSaleOfDay = rSaleForecase.Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
-                        TotalInventory = TotalInventory - iSaleOfDay;
-                        iInventoryBalance.value = TotalInventory;
-                        iInventoryBalance.date = dtLoop.ToString("yyyyMMdd");
-                        rInventoryBalance.Add(iInventoryBalance);
-                        dtLoop = dtLoop.AddDays(1);
 
-
-                        foreach (MCntOfPltype pltype in GroupPltype)
+                        try
                         {
-                            // (##) SET INVENTORY BY PLTYPE
-                            InventoryBalancePltype oInventoryBalancePltype = new InventoryBalancePltype();
-                            oInventoryBalancePltype.pltype = pltype.pltype;
-                            oInventoryBalancePltype.modelName = oModel.Trim();
-                            int oSaleOfPltype = rSaleForecase.Where(x => x.Pltype == pltype.pltype).Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+                            string d = dtLoop.ToString("dd");
+                            string ymdInbound = $"{ym}{d}";
 
-                            //allInventory.Where(x => x.model == oModel.Trim() && x.pltype == pltype.pltype).Sum(x => Convert.ToInt32(x.cnt));
+                            // (##) SET INBOUND OF DAY
+                            double sumDayInbound = 0;
+                            foreach (MInbound oInbound in rInbound.Where(x => x.astDate.Replace("-", "") == ymdInbound).ToList())
+                            {
+                                if (oInbound.astType == "IN")
+                                {
+                                    sumDayInbound += oInbound.astQty;
+                                    sumAllInbound += oInbound.astQty;
+                                }
+                                else
+                                {
+                                    sumDayInbound -= oInbound.astQty;
+                                    sumAllInbound -= oInbound.astQty;
+                                }
+                            }
+                            resInbound.Add(new MInbound()
+                            {
+                                astDate = ymdInbound,
+                                astQty = sumDayInbound
+                            });
+                            // (##) END CAL INBOUND OF DAY
 
+
+
+
+                            InventoryBalance iInventoryBalance = new InventoryBalance();
+                            // (##) GET SALE OF DAY
+                            double iSaleOfDay = rSaleForecase.Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+
+                            //double iSaleOfDay = rSaleForeCaseAlLCustomer.Where(x => x.Lrev == "999" & rYM.Contains(x.Ym)).Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+
+                            TotalInventory = TotalInventory - iSaleOfDay;
+                            iInventoryBalance.value = TotalInventory;
+                            iInventoryBalance.date = dtLoop.ToString("yyyyMMdd");
+                            rInventoryBalance.Add(iInventoryBalance);
+                            if (TotalInventory < 0) // inventory balance ติดลบจะใส่ response[warning] = true เพื่อนำไปใช้ในหน้า Warning
+                            {
+                                oResponse.warning = true;
+                            }
+                            dtLoop = dtLoop.AddDays(1);
+
+
+                            foreach (MCntOfPltype pltype in GroupPltype)
+                            {
+                                // (##) SET INVENTORY BY PLTYPE
+                                InventoryBalancePltype oInventoryBalancePltype = new InventoryBalancePltype();
+                                oInventoryBalancePltype.pltype = pltype.pltype;
+                                oInventoryBalancePltype.modelName = oModel.Trim();
+                                int oSaleOfPltype = rSaleForecase.Where(x => x.Pltype == pltype.pltype).Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+                                //allInventory.Where(x => x.model == oModel.Trim() && x.pltype == pltype.pltype).Sum(x => Convert.ToInt32(x.cnt));
+                            }
+
+                            // (##) CAL INVENTORY PLANNING OF DAY
+                            MData oInvPlnOfDay = new MData();
+                            double rSaleOfDay = 0;
+                            double nSaleOfDay = rSaleForecase.Where(x => x.Ym == ym).Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+                            oInvPlnOfDay.date = $"{ym}{dtLoop.ToString("dd")}";
+                            if (d == "01")
+                            {
+                                nInvPln -= rSaleOfDay;
+                                oInvPlnOfDay.value = nInvPln;
+                            }
+                            else
+                            {
+                                int dayPrev = dtLoop.AddDays(-1).Day; // วันที่ loop - 1 day
+                                if (rCurrentPlanOfModel.Count > 0)
+                                {
+                                    Console.WriteLine("123");
+                                }
+                                double nCurPlnOfPrevDay = rCurrentPlanOfModel.Sum(x => double.Parse(x.GetType().GetProperty("Day" + dayPrev.ToString("D2")).GetValue(x).ToString())); // ตัวเลขแผนผลิต -1d 
+                                int nInvHold = 0;
+
+                                if ($"{ym}{dtLoop.ToString("dd")}" == dtNow.ToString("yyyyMM"))
+                                {
+                                    List<MHoldInventory> rInvHoldOfDay = oHoldInventory.Where(x => x.model.Trim() == oModel).ToList();
+                                    if (rInvHoldOfDay.Count > 0 && rInvHoldOfDay.FirstOrDefault() != null)
+                                    {
+                                        nInvHold = rInvHoldOfDay.FirstOrDefault()?.balstk != "" ? int.Parse(rInvHoldOfDay.FirstOrDefault()?.balstk) : 0;
+                                    }
+                                }
+                                nInvPln = (nInvPln + nCurPlnOfPrevDay + nInvHold) - nSaleOfDay;
+                                oInvPlnOfDay.value = nInvPln;
+                            }
+                            rInventoryPlanning.Add(oInvPlnOfDay);
+                        }
+                        catch (Exception e)
+                        {
+                            string modelName = oModel;
+                            Console.WriteLine(modelName);
                         }
                     }
+
+                    if (oResponse.warning == true)
+                    {
+                        DateTime dtLoopWarning = dtStart;
+                        int YearWarning = int.Parse(rYM.LastOrDefault().Substring(0, 4));
+                        int MonthWarning = int.Parse(rYM.LastOrDefault().Substring(4, 2));
+                        while (dtLoopWarning.Date < new DateTime(YearWarning, MonthWarning, DateTime.DaysInMonth(YearWarning, MonthWarning)).AddDays(1))
+                        {
+
+                            // (##) SUM SALE OF DAY
+                            MData SaleAllCusOfDay = new MData(); // แผนการขายต่อวัน รวมทุกลูกค้า
+                            SaleAllCusOfDay.date = dtLoopWarning.ToString("yyyyMMdd");
+                            List<AlSaleForecaseMonth> test = rSaleForeCaseAlLCustomer.Where(x => x.ModelName == oModel && x.Ym == dtLoopWarning.ToString("yyyyMM")).ToList();
+                            SaleAllCusOfDay.value = rSaleForeCaseAlLCustomer.Where(x => x.ModelName == oModel && x.Ym == dtLoopWarning.ToString("yyyyMM")).ToList().Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoopWarning.ToString("dd")).GetValue(x).ToString()));
+                            rSaleAllCusOfModel.Add(SaleAllCusOfDay);
+                            dtLoopWarning = dtLoopWarning.AddDays(1);
+                            // (##) END
+                        }
+                    }
+
+
+                    // (##) SET SALE ALL CUSTOMER FOR WARNING COMPONENT
+                    oResponse.listSaleForeCaseAllCustomer = rSaleAllCusOfModel;
+
+                    // (##) SET INVENTORY PLANNING
+                    oResponse.listInventoryPlanning = rInventoryPlanning;
+
+                    // (##) SET LIST INBOUND
+                    oResponse.listInbound = resInbound;
+
+                    // (##) SET INVENTORY BALANCE 
                     oResponse.InventoryBalance = rInventoryBalance;
 
                     // (8) RESULT MAIN
@@ -709,6 +873,7 @@ order by model";
                             });
                         }
                     }
+
                     // (11) GET SBU (AREATYPE) OF SBU ARRAY
                     oResponse.sbu = "";
                     GstSalMdl oSBU = rGstSalMdl.FirstOrDefault(z => z.modelName == oModel.Trim());
@@ -727,7 +892,99 @@ order by model";
                 modeltype = rModelType
             });
         }
+
+
+        [HttpGet]
+        [Route("/GRAFANA_SUMMARY_INVENTORY_AND_SALE")]
+        public IActionResult GRAFANA_SUMMARY_INVENTORY_AND_SALE()
+        {
+            List<PnCompressor> listModel = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
+            List<string> rGroupType = listModel.Select(x => serv.getModelGroup(x.Model)).Distinct().ToList();
+            return Ok();
+        }
+
+        [HttpPost]
+        [Route("/warning/get")]
+        public IActionResult GetWarningData()
+        {
+            // (##) สร้างตัวแปร
+            // (##) เก็บข้อมูลการขาย
+            List<MWarning> res = new List<MWarning>();
+            DateTime dtStartWarning = DateTime.Now;
+            DateTime dtEndWarning = dtStartWarning.AddDays(10);
+            List<string> rYM = new List<string>();
+            if (dtStartWarning.Month != dtEndWarning.Month) // เช็คว่า เดือนเริ่ม เดือนสิ้นสุด ต่างกันหรือไม่ ? สำหรับ where table schema D1-31
+            {
+                rYM.Add(dtStartWarning.ToString("yyyyMM"));
+                rYM.Add(dtEndWarning.ToString("yyyyMM"));
+            }
+            else
+            {
+                rYM.Add(dtStartWarning.ToString("yyyyMM"));
+            }
+            // (##) 
+
+            // (##) GET MASTER
+            List<MInventory> rInventory = serv.GetInventory();
+            List<GstSalMdl> rSKU = serv.GetSKU();
+            List<PnCompressor> rModel = serv.getModels();
+            List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == "999" && rYM.Contains(x.Ym)).ToList();
+            List<PnCompressor> rModelDetail = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
+            // (##)
+
+            foreach (PnCompressor oModel in rModel)
+            {
+                bool warning = false;
+                List<string> rCustomer = new List<string>();
+                List<string> rPltype = new List<string>();
+                MWarning item = new MWarning();
+                string model = oModel.Model.Trim();
+                var sku = rSKU.FirstOrDefault(x => x.modelName == model);
+                var oModelDetail = rModelDetail.FirstOrDefault(x => x.Model == model);
+                string sebango = oModelDetail != null ? oModelDetail.ModelCode : "";
+                item.model = model;
+                item.sbu = sku != null ? sku.sku : "";
+                item.sebango = sebango;
+                DateTime dtLoop = dtStartWarning;
+                string ymdLoop = dtLoop.ToString("yyyyMMdd");
+                MInventory oInventory = rInventory.FirstOrDefault(x => x.model.Trim() == model); // (##) find Inventory of day by field model, date
+                double nInventory = oInventory != null ? double.Parse(oInventory.cnt) : 0;
+                while (dtLoop < dtEndWarning)
+                {
+                    MData mSale = new MData(); // Sale of day
+                    MData mInventory = new MData(); // Inv:accu - Sale of day
+                    List<AlSaleForecaseMonth> rSale = rSaleForecase.Where(x => x.ModelName == model).ToList();
+                    double nSale = rSale.Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+
+                    // (##) FOR CUSTOMER 
+                    foreach (AlSaleForecaseMonth oSale in rSale)
+                    {
+                        rCustomer.Add(oSale.Customer);
+                        rPltype.Add(oSale.Pltype);
+                    }
+                    mSale.date = dtLoop.ToString("yyyyMMdd");
+                    mSale.value = nSale;
+                    nInventory = nInventory - nSale;
+                    if (nInventory < 0)
+                    {
+                        warning = true;
+                    }
+                    mInventory.date = dtLoop.ToString("yyyyMMdd");
+                    mInventory.value = nInventory;
+                    item.listSale.Add(mSale);
+                    item.listInventory.Add(mInventory);
+                    dtLoop = dtLoop.AddDays(1);
+                }
+                if (warning == true)
+                {
+                    item.total = nInventory;
+                    res.Add(item);
+                    item.customer = rCustomer.Distinct().ToList();
+                    item.pltype = rPltype.Distinct().ToList();
+                }
+            }
+
+            return Ok(res);
+        }
     }
-
-
 }
