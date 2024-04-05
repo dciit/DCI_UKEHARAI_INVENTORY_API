@@ -39,7 +39,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
         {
 
             string startDate = $@"{year}-{month}-01";
-            string endDate = $@"{year}-{month}-{Convert.ToInt32(DateTime.DaysInMonth(int.Parse(year), int.Parse(month))).ToString("##")}";
+            string endDate = $@"{year}-{month}-{Convert.ToInt32(DateTime.DaysInMonth(int.Parse(year), int.Parse(month))).ToString("##")} 23:59:59";
             List<MMainResult> rMainResult = new List<MMainResult>();
             //List<PnCompressor> rPnCompressor = _DBSCM.PnCompressors.Select(x => new PnCompressor { ModelCode = x.ModelCode, Model = x.Model }).Distinct().ToList();
             //---------------------------------------------------------------------------------------------//
@@ -66,11 +66,6 @@ namespace DCI_UKEHARAI_INVENTORY_API
                 string LineName = dr["LineName"].ToString();
                 string ModelCode = dr["Model_No"].ToString();
                 string ModelName = "";
-                //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                //if (FindModelName != null)
-                //{
-                //    ModelName = FindModelName.Model;
-                //}
                 string Wcno = "";
                 if (LineName == "1")
                 {
@@ -116,11 +111,6 @@ namespace DCI_UKEHARAI_INVENTORY_API
                 string LineName = dr["LineName"].ToString();
                 string ModelCode = dr["Model_No"].ToString();
                 string ModelName = "";
-                //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                //if (FindModelName != null)
-                //{
-                //    ModelName = FindModelName.Model;
-                //}
                 string Wcno = "";
                 if (LineName == "5")
                 {
@@ -144,19 +134,30 @@ namespace DCI_UKEHARAI_INVENTORY_API
             //---------------------------------  ADJ MAIN RESULT L6 ---------------------------------------//
             //---------------------------------------------------------------------------------------------//
             SqlCommand sqlMainL6 = new SqlCommand();
-            sqlMainL6.CommandText = @"SELECT shiftDate, Model_No, SUM(cnt) cnt FROM(
-                                             SELECT  COUNT(DISTINCT PartSerialNo) cnt, RIGHT(LEFT(PartSerialNo,4),3) AS [Model_No], 
+            //sqlMainL6.CommandText = @"SELECT shiftDate, Model_No, SUM(cnt) cnt FROM(
+            //                                 SELECT  COUNT(DISTINCT PartSerialNo) cnt, RIGHT(LEFT(PartSerialNo,4),3) AS [Model_No], 
+            //                                   case when DATEPART(HOUR, insertdate) >= 8 and DATEPART(HOUR, insertdate) < 20 then format(insertdate,'yyyy-MM-dd', 'en-US') 
+            //                                    when DATEPART(HOUR, insertdate) < 8 then format(DATEADD(day,-1,insertdate),'yyyy-MM-dd','en-US') 
+            //                                    else format(insertdate,'yyyy-MM-dd','en-US') end shiftDate
+            //                                 FROM ElectricalConduction
+            //                                 WHERE IntegratedJudgementResult='OK' AND CheckGlassTerminal='OK' AND (insertdate >= @StartDate AND insertdate <= @EndDate) 
+            //                                 GROUP BY RIGHT(LEFT(PartSerialNo,4),3), 
+            //                                    case when DATEPART(HOUR, insertdate) >= 8 and DATEPART(HOUR, insertdate) < 20 then format(insertdate,'yyyy-MM-dd', 'en-US') 
+            //                                      when DATEPART(HOUR, insertdate) < 8 then format(DATEADD(day,-1,insertdate),'yyyy-MM-dd','en-US') 
+            //                                      else format(insertdate,'yyyy-MM-dd','en-US') end
+            //                                ) as t
+            //                                GROUP BY shiftDate, Model_No ";
+            sqlMainL6.CommandText = @"	SELECT  COUNT(DISTINCT PartSerialNo) cnt, RIGHT(LEFT(PartSerialNo,4),3) AS [Model_No], 
                                                case when DATEPART(HOUR, insertdate) >= 8 and DATEPART(HOUR, insertdate) < 20 then format(insertdate,'yyyy-MM-dd', 'en-US') 
                                                 when DATEPART(HOUR, insertdate) < 8 then format(DATEADD(day,-1,insertdate),'yyyy-MM-dd','en-US') 
                                                 else format(insertdate,'yyyy-MM-dd','en-US') end shiftDate
                                              FROM ElectricalConduction
-                                             WHERE IntegratedJudgementResult='OK' AND CheckGlassTerminal='OK' AND (insertdate BETWEEN @StartDate and @EndDate )
-                                             GROUP BY RIGHT(LEFT(PartSerialNo,4),3), 
+                                             WHERE IntegratedJudgementResult='OK' AND CheckGlassTerminal='OK'
+											 AND (insertdate >=  @StartDate AND insertdate <= CONCAT(DATEADD(day,1,CAST(@EndDate AS DATE)),' 08:00:00'))
+											 GROUP BY RIGHT(LEFT(PartSerialNo,4),3), 
                                                 case when DATEPART(HOUR, insertdate) >= 8 and DATEPART(HOUR, insertdate) < 20 then format(insertdate,'yyyy-MM-dd', 'en-US') 
                                                   when DATEPART(HOUR, insertdate) < 8 then format(DATEADD(day,-1,insertdate),'yyyy-MM-dd','en-US') 
-                                                  else format(insertdate,'yyyy-MM-dd','en-US') end
-                                            ) as t
-                                            GROUP BY shiftDate, Model_No ";
+                                                  else format(insertdate,'yyyy-MM-dd','en-US') end";
             sqlMainL6.Parameters.Add(new SqlParameter("@StartDate", startDate));
             sqlMainL6.Parameters.Add(new SqlParameter("@EndDate", endDate));
             DataTable dtMainL6 = DBIOTFAC3.Query(sqlMainL6);
@@ -211,11 +212,6 @@ namespace DCI_UKEHARAI_INVENTORY_API
                     string LineName = dr["LineName"].ToString();
                     string ModelCode = dr["Model_No"].ToString();
                     string ModelName = "";
-                    //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                    //if (FindModelName != null)
-                    //{
-                    //    ModelName = FindModelName.Model;
-                    //}
                     string Wcno = "";
                     if (LineName == "7")
                     {
@@ -244,7 +240,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
                                                when DATEPART(HOUR, [Date_insert]) < 8 then format(DATEADD(day,-1,[Date_insert]),'yyyy-MM-dd','en-US') 
                                                else format([Date_insert],'yyyy-MM-dd','en-US') end shiftDate
                                              FROM [dbIoT].[dbo].[L8_ConnectingCheck]
-                                             WHERE [Integrated_judgment_result] = 'OK' and [Date_insert] between @StartDate and @EndDate  
+                                             WHERE [Integrated_judgment_result] = 'OK' and  ([Date_insert] >= @StartDate AND [Date_insert] <= @EndDate) 
                                             ) as t
                                             GROUP BY shiftDate, [Model_No]
                                             ORDER BY shiftDate ASC    ";
@@ -261,11 +257,6 @@ namespace DCI_UKEHARAI_INVENTORY_API
                     //string LineName = dr["LineName"].ToString();
                     string ModelCode = dr["Model_No"].ToString();
                     string ModelName = "";
-                    //var FindModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == ModelCode);
-                    //if (FindModelName != null)
-                    //{
-                    //    ModelName = FindModelName.Model;
-                    //}
                     string Wcno = "908";
                     itemMain.LineName = Wcno;
                     itemMain.Model_No = ModelCode;
@@ -291,7 +282,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
             LEFT JOIN (SELECT [ModelCode],[Model] FROM [192.168.226.86].dbSCM.dbo.PN_Compressor 
                   WHERE [Status] = 'ACTIVE' and Line = '4' 
                   GROUP BY [ModelCode],[Model]) M ON M.[ModelCode] = SUBSTRING([serial_no],1,4)
-            WHERE Judgement = 'OK' AND serial_no NOT LIKE '%MASTER%' AND serial_no <> '' AND FORMAT(DATEADD(hour,-8,plc_date),'yyyy-MM-dd') BETWEEN @StartDate AND @EndDate 
+            WHERE Judgement = 'OK' AND serial_no NOT LIKE '%MASTER%' AND serial_no <> '' AND (FORMAT(DATEADD(hour,-8,plc_date),'yyyy-MM-dd') >= @StartDate AND FORMAT(DATEADD(hour,-8,plc_date),'yyyy-MM-dd') <= @EndDate) 
             GROUP BY FORMAT(DATEADD(hour,-8,plc_date),'yyyy-MM-dd')
                 ,FORMAT(DATEADD(hour,-8,plc_date),'yyyyMMdd') 
                 ,M.[Model]";
@@ -303,10 +294,8 @@ namespace DCI_UKEHARAI_INVENTORY_API
             {
                 MMainResult itemMain = new MMainResult();
                 string ModelName = dr["Model"]!.ToString();
-                //string ModelCode = rPnCompressor.FirstOrDefault(x => x.Model == ModelName).ModelCode;
                 string Wcno = "904";
                 itemMain.LineName = Wcno;
-                //itemMain.Model_No = ModelCode;
                 itemMain.ModelName = ModelName;
                 itemMain.shiftDate = dr["PRD_DATE"].ToString();
                 itemMain.cnt = int.Parse(dr["CNT"]!.ToString());
@@ -320,7 +309,6 @@ namespace DCI_UKEHARAI_INVENTORY_API
                 y.Key.LineName,
                 y.Key.Model_No,
                 y.Key.shiftDate,
-                //ModelName = rPnCompressor.FirstOrDefault(x => x.ModelCode == y.Key.Model_No)!.Model,
                 cnt = y.Sum(x => x.cnt)
             }).ToList();
             return rMainResult;
@@ -360,7 +348,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
             {
                 modelGroup = "ODM";
             }
-            return "1YC";
+            return modelGroup;
         }
 
         internal List<MInventory> GetInventory()
@@ -397,9 +385,13 @@ order by model";
                 GstSalMdl oGstSalMdl = new GstSalMdl();
                 string modelName = drGstSalMdl["MODELNAME"].ToString();
                 string sku = drGstSalMdl["SKU"].ToString();
-                oGstSalMdl.modelName = modelName;
-                oGstSalMdl.sku = sku;
-                rGstSalMdl.Add(oGstSalMdl);
+                if (sku != "")
+                {
+                    oGstSalMdl.modelName = modelName;
+                    oGstSalMdl.sku = sku;
+                    oGstSalMdl.modelGroup = getModelGroup(modelName);
+                    rGstSalMdl.Add(oGstSalMdl);
+                }
             }
             return rGstSalMdl;
         }

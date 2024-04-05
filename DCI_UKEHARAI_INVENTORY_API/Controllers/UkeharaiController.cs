@@ -7,6 +7,7 @@ using Oracle.ManagedDataAccess.Client;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Runtime.Intrinsics.Arm;
 
 namespace DCI_UKEHARAI_INVENTORY_API.Controllers
 {
@@ -368,7 +369,11 @@ namespace DCI_UKEHARAI_INVENTORY_API.Controllers
             string month = ym.Substring(4, 2);
             int dayOfMonth = DateTime.DaysInMonth(int.Parse(year), int.Parse(month));
             List<MInbound> mInbounds = new List<MInbound>();
+
+            // (##) RESULT MAIN
             List<MMainResult> mMainResult = new Service(_DBSCM).GetResultMain(year, month);
+
+            // (##) GET INBOUND
             OracleCommand oracleCommand = new OracleCommand();
             oracleCommand.CommandText = $@"SELECT TO_CHAR(W.ASTDATE,'YYYY-MM-DD') AS ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE, SUM(W.ASTQTY) ASTQTY 
 FROM SE.WMS_ASSORT W
@@ -394,10 +399,9 @@ GROUP BY W.ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE";
                     mInbounds.Add(mInbound);
                 }
             }
-            //return Ok(dt);
 
             List<MActual> response = new List<MActual>();
-            List<MInbound> listInbound = new List<MInbound>();
+            //List<MInbound> listInbound = new List<MInbound>();
             List<MWms_MstPkm> listPltype = new List<MWms_MstPkm>();
             //set inventory data
             List<MInventory> allInventory = new List<MInventory>();
@@ -466,7 +470,6 @@ GROUP BY W.YM,  W.MODEL";
             {
                 MHoldInventory iLastInventory = new MHoldInventory();
                 iLastInventory.ym = dr["YM"].ToString();
-                //iLastInventory.wc = dr["WC"].ToString();
                 iLastInventory.model = dr["MODEL"].ToString();
                 iLastInventory.balstk = dr["BALSTK"].ToString();
                 iLastInventory.lbalstk = dr["LBALSTK"].ToString();
@@ -546,6 +549,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             }
 
             // (##) GET AREA GST_SALMDL
+
             List<GstSalMdl> rGstSalMdl = new List<GstSalMdl>();
             OracleCommand strGstSalMdl = new OracleCommand();
             strGstSalMdl.CommandText = @"SELECT G.AREA SKU, G.MODL_NM MODELNAME  FROM PLAN.GST_SALMDL G where lrev = '999'";
@@ -713,10 +717,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     double sumAllInbound = 0; // ผลรวม Inbound ประจำวัน
                     List<MInbound> resInbound = new List<MInbound>();
                     double nInvPln = nLastInventory;
-                    if (oModel == "1Y056BCEX1G#A")
-                    {
-                        Console.WriteLine("123");
-                    }
+
                     DateTime dtStartWarning = dtNow;
                     DateTime dtEndWarning = dtNow.AddDays(10);
                     while (dtLoop.Date < new DateTime(dtNow.Year, dtNow.Month, DateTime.DaysInMonth(dtNow.Year, dtNow.Month)).AddDays(1))
@@ -947,8 +948,8 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 item.sebango = sebango;
                 DateTime dtLoop = dtStartWarning;
                 string ymdLoop = dtLoop.ToString("yyyyMMdd");
-                MInventory oInventory = rInventory.FirstOrDefault(x => x.model.Trim() == model); // (##) find Inventory of day by field model, date
-                double nInventory = oInventory != null ? double.Parse(oInventory.cnt) : 0;
+                List<MInventory> oInventory = rInventory.Where(x => x.model.Trim() == model).ToList(); // (##) find Inventory of day by field model, date
+                double nInventory = oInventory.Count > 0 ? oInventory.Sum(x => double.Parse(x.cnt)) : 0;
                 while (dtLoop < dtEndWarning)
                 {
                     MData mSale = new MData(); // Sale of day
@@ -985,6 +986,243 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             }
 
             return Ok(res);
+        }
+
+
+        [HttpPost]
+        [Route("/chart")]
+        public IActionResult Chart([FromBody] MChartParam param)
+        {
+            string ym = param.ym;
+            List<MChart> rData = new List<MChart>();
+            List<List<string>> rProdType = new List<List<string>>();
+            rProdType.Add(new List<string>() { "1YC", "2YC", "SCR" });
+            rProdType.Add(new List<string>() { "ODM" });
+            List<MStyleChartOfCustomer> rStyle = new List<MStyleChartOfCustomer>()
+            {
+                new MStyleChartOfCustomer()
+                {
+                    customer = "DAM",
+                    backgroundColor = "#f44336ab",
+                    //borderColor = "#f44336"
+
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DIT",
+                    backgroundColor = "#009688ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DAV",
+                    backgroundColor = "#795548ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DAMA",
+                    backgroundColor = "#e91e63ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DAIPL",
+                    backgroundColor = "#4caf50ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DIL",
+                    backgroundColor = "#9e9e9eab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DMMX",
+                    backgroundColor = "#9c27b0ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DAP",
+                    backgroundColor = "#8bc34aab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DTL-T",
+                    backgroundColor = "#607d8bab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "SDS",
+                    backgroundColor = "#673ab7ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DICZ",
+                    backgroundColor = "#cddc39ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DDC",
+                    backgroundColor = "#3f51b5ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DNA",
+                    backgroundColor = "#ffeb3bab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DRDM",
+                    backgroundColor = "#2196f3ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DMS",
+                    backgroundColor = "#ffc107ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DTAS",
+                    backgroundColor = "#03a9f4ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DAA",
+                    backgroundColor = "#ff9800ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DENV",
+                    backgroundColor = "#00bcd4ab",
+                    //borderColor = "#f44336"
+                },
+                  new MStyleChartOfCustomer()
+                {
+                    customer = "DSZ",
+                    backgroundColor = "#ff5722ab",
+                    //borderColor = "#f44336"
+                }
+            };
+            List<GstSalMdl> rSKUData = serv.GetSKU();
+            List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == "999" && x.Ym == ym && x.ModelCode != "").ToList();
+            List<AlGsdCurpln> rPlan = _DBSCM.AlGsdCurplns.Where(x => x.Prdym == ym).ToList();
+            foreach (List<string> oProdType in rProdType)
+            {
+                MChartSale rChartSale = new MChartSale();
+                // (##) INIT CHART SALE
+                List<string> rSKU = rSKUData.Where(x => oProdType.Contains(x.modelGroup)).GroupBy(x => x.sku).Select(x => x.Key).ToList();
+                List<MChartModelWithSale> rModelWithSale = (from s in rSaleForecase
+                                                            join sku in rSKUData
+                                                            on s.ModelName.Trim() equals sku.modelName.Trim() into aaa
+                                                            from bbb in aaa.DefaultIfEmpty()
+                                                            select new MChartModelWithSale()
+                                                            {
+                                                                modelName = s.ModelName,
+                                                                sku = bbb != null ? bbb.sku : "",
+                                                                customer = s.Customer,
+                                                                sum = (s.D01 + s.D02 + s.D03 + s.D04 + s.D05 + s.D06 + s.D07 + s.D08 + s.D09 + s.D10 + s.D11 + s.D12 + s.D13 + s.D14 + s.D15 + s.D16 + s.D17 + s.D18 + s.D19 + s.D20 + s.D21 + s.D22 + s.D23 + s.D24 + s.D25 + s.D26 + s.D27 + s.D28 + s.D29 + s.D30 + s.D31)
+                                                            }).Where(x => x.sku != "" && oProdType.Contains(serv.getModelGroup(x.modelName))).GroupBy(x => new
+                                                            {
+                                                                x.sku,
+                                                                x.customer
+                                                            }).Select(g => new MChartModelWithSale()
+                                                            {
+                                                                sku = g.Key.sku,
+                                                                customer = g.Key.customer,
+                                                                sum = g.Sum(s => s.sum)
+                                                            }).ToList();
+                List<MChartDataSet> rChartDataSet = new List<MChartDataSet>();
+                List<string> rCustomer = rModelWithSale.Select(x => x.customer).Distinct().ToList();
+                foreach (string sku in rSKU)
+                {
+
+                    foreach (string customer in rCustomer)
+                    {
+                        List<MChartModelWithSale> oSumOfSKU = rModelWithSale.Where(x => x.sku == sku && x.customer == customer).ToList();
+                        if (rChartDataSet.FirstOrDefault(x => x.label == customer) != null)
+                        {
+                            MChartDataSet oChartSale = rChartDataSet.FirstOrDefault(x => x.label == customer);
+                            oChartSale.data.Add(oSumOfSKU.Sum(x => x.sum));
+                        }
+                        else
+                        {
+                            MChartDataSet oChartSale = new MChartDataSet();
+                            oChartSale.label = customer;
+                            oChartSale.data.Add(oSumOfSKU.Sum(x => x.sum));
+                            MStyleChartOfCustomer oStyle = rStyle.FirstOrDefault(x => x.customer == customer);
+                            if (oStyle != null)
+                            {
+                                oChartSale.backgroundColor = oStyle.backgroundColor;
+                            }
+                            else
+                            {
+                                oChartSale.backgroundColor = "";
+                            }
+                            rChartDataSet.Add(oChartSale);
+                        }
+                    }
+                }
+                rChartSale.label = rSKU;
+                rChartSale.dataset = rChartDataSet;
+
+                rData.Add(new MChart()
+                {
+                    name = $"SALE ({String.Join(",", oProdType)})",
+                    chart = rChartSale
+                });
+
+                List<MChartDataSet> rChartDataSetPlan = new List<MChartDataSet>();
+                MChartSale rChartCurPln = new MChartSale();
+                List<MChartModelWithPlan> rModelWithPlan = (from plan in rPlan
+                                                            join sku in rSKUData
+                                                            on plan.Model equals sku.modelName into a
+                                                            from aa in a.DefaultIfEmpty()
+                                                            select new MChartModelWithPlan()
+                                                            {
+                                                                modelGroup = serv.getModelGroup(plan.Model),
+                                                                sku = aa != null ? aa.sku : "",
+                                                                sum = (Convert.ToInt32(plan.Day01) + Convert.ToInt32(plan.Day02) + Convert.ToInt32(plan.Day03) + Convert.ToInt32(plan.Day04) + Convert.ToInt32(plan.Day05) + Convert.ToInt32(plan.Day06) + Convert.ToInt32(plan.Day07) + Convert.ToInt32(plan.Day08) + Convert.ToInt32(plan.Day09) + Convert.ToInt32(plan.Day10) + Convert.ToInt32(plan.Day11) + Convert.ToInt32(plan.Day12) + Convert.ToInt32(plan.Day13) + Convert.ToInt32(plan.Day14) + Convert.ToInt32(plan.Day15) + Convert.ToInt32(plan.Day16) + Convert.ToInt32(plan.Day17) + Convert.ToInt32(plan.Day18) + Convert.ToInt32(plan.Day19) + Convert.ToInt32(plan.Day20) + Convert.ToInt32(plan.Day21) + Convert.ToInt32(plan.Day22) + Convert.ToInt32(plan.Day23) + Convert.ToInt32(plan.Day24) + Convert.ToInt32(plan.Day25) + Convert.ToInt32(plan.Day26) + Convert.ToInt32(plan.Day27) + Convert.ToInt32(plan.Day28) + Convert.ToInt32(plan.Day29) + Convert.ToInt32(plan.Day30) + Convert.ToInt32(plan.Day31))
+                                                            }
+                                                    ).Where(x => x.sku != "" && oProdType.Contains(x.modelGroup)).GroupBy(x => x.sku).Select(g => new MChartModelWithPlan()
+                                                    {
+                                                        sku = g.Key,
+                                                        sum = g.Sum(s => s.sum)
+                                                    }).ToList();
+                MChartSale oDataSet = new MChartSale();
+                List<MChartDataSet> rDataSet = new List<MChartDataSet>();
+                MChartDataSet iDataSet = new MChartDataSet();
+                iDataSet.label = "Current Plan";
+                foreach (MChartModelWithPlan item in rModelWithPlan)
+                {
+                    iDataSet.data.Add(item.sum);
+                    iDataSet.backgroundColor = "#3b82f6";
+                }
+               
+                rDataSet.Add(iDataSet);
+                oDataSet.label = rModelWithPlan.Select(x => x.sku).ToList();
+                oDataSet.dataset = rDataSet;
+
+                rData.Add(new MChart()
+                {
+                    name = $"CURRENT PLAN ({String.Join(",", oProdType)})",
+                    chart = oDataSet
+                });
+
+            }
+            return Ok(rData);
         }
     }
 }
