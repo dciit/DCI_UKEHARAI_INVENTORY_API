@@ -324,7 +324,7 @@ public partial class DBSCM : DbContext
                 .HasMaxLength(3)
                 .HasColumnName("WCNO");
             entity.Property(e => e.Partno)
-                .HasMaxLength(20)
+                .HasMaxLength(25)
                 .HasColumnName("PARTNO");
             entity.Property(e => e.Cm)
                 .HasMaxLength(2)

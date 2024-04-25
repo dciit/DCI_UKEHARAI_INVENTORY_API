@@ -1,8 +1,11 @@
 ﻿using DCI_UKEHARAI_INVENTORY_API.Contexts;
 using DCI_UKEHARAI_INVENTORY_API.Models;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Data.SqlClient;
 using Oracle.ManagedDataAccess.Client;
 using System.Data;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 
 namespace DCI_UKEHARAI_INVENTORY_API
@@ -394,6 +397,96 @@ order by model";
                 }
             }
             return rGstSalMdl;
+        }
+
+        internal List<MData> getInvPlnMain(string ym, string model , List<EkbWipPartStock> LastInventory, List<AlSaleForecaseMonth> ListSale, List<MHoldInventory> ListHold, List<MMainResult> ListMain, List<MHoldInventory> rInvHold)
+        {
+            List<MData> res = new List<MData>(); // IS RESPONSE
+            try
+            {
+                int yyyy = int.Parse(ym.Substring(0, 4));
+                int mmmm = int.Parse(ym.Substring(4, 2));
+                DateTime dtStart = new DateTime(yyyy, mmmm, 1);
+                DateTime dtEnd = new DateTime(dtStart.Year, dtStart.Month, DateTime.DaysInMonth(dtStart.Year, dtStart.Month));
+                int total = LastInventory.FirstOrDefault(x => x.Partno == model.Trim() && x.Wcno == "999") != null ? (int)LastInventory.FirstOrDefault(x => x.Partno == model.Trim() && x.Wcno == "999").Bal : 0; // ยอด Inventory Main วันแรกของเดือน
+                while (dtStart.Date <= dtEnd.Date)
+                {
+                    string dd = dtStart.ToString("dd");
+                    string mm = dtStart.Month.ToString("MM");
+                    int sale = ListSale.Count > 0 ? ListSale.Sum(x => int.Parse(x.GetType().GetProperty($"D{dd}").GetValue(x).ToString())) : 0;
+                    //if (model == "1Y056BCBX1T#A")
+                    //{
+                    //    Console.WriteLine("asd");
+                    //}
+                    if (dd == "01")
+                    {
+                        List<MMainResult> rResultMain = ListMain.Where(x => x.shiftDate.Substring(8, 2) == dd).ToList();
+                        int InvMain = rResultMain.Count > 0 ? rResultMain.FirstOrDefault().cnt : 0;
+                        total -= InvMain;
+                        total -= sale;
+                    }
+                    else
+                    {
+                        if (model == "1Y056BCBX1T#A")
+                        {
+                            Console.WriteLine("asd");
+                        }
+                        string PrevDD = dtStart.AddDays(-1).ToString("dd");
+                        List<MMainResult> rResultMain = ListMain.Where(x => x.shiftDate.Substring(8, 2) == PrevDD && x.shiftDate.Substring(5,2) == mm).ToList();
+                        int InvMain = rResultMain.Count > 0 ? rResultMain.FirstOrDefault().cnt : 0;
+                        //int InvHold = rInvHold.Count > 0 ? rInvHold.Sum(x => int.Parse(x.balstk)) : 0;
+                        int InvHold = 0;
+                        total = (total + InvMain + InvHold) - sale;
+                    }
+                    res.Add(new MData()
+                    {
+                        date = dtStart.ToString("yyyyMMdd"),
+                        value = total
+                    });
+                    if (dtStart.Date == dtEnd.Date)
+                    {
+                        //if (model == "2Y550BVAX1S#A") {
+                        //    Console.WriteLine("asdd");
+                        //}
+                        //int InvHold = 0;
+                        //List<MMainResult> rResultMain = ListMain.Where(x => x.shiftDate.Substring(8, 2) == dtStart.ToString("dd")).ToList();
+                        //int InvMain = rResultMain.Count > 0 ? rResultMain.FirstOrDefault().cnt : 0;
+                        //total = (total + InvMain + InvHold);
+                        //if (ListMain.FirstOrDefault(x => x.ModelName == model && x.ym == dtStart.ToString("yyyyMM")) == null)
+                        //{
+                        //    if (oMainResult.Where(x => x.shiftDate == dtStart.ToString("yyyy-MM-dd")).ToList().Count > 0)
+                        //    {
+                        //        nResultMain = oMainResult.Where(x => x.shiftDate == dtStart.ToString("yyyy-MM-dd")).Sum(x => x.cnt);
+                        //    }
+                        //    if (oSale.Count > 0)
+                        //    {
+                        //        try
+                        //        {
+                        //            nSale = oSale.Sum(x => int.Parse(x.GetType().GetProperty($"D{dd}").GetValue(x).ToString()));
+                        //        }
+                        //        catch (Exception e)
+                        //        {
+                        //            nSale = 0;
+                        //        }
+                        //    }
+                        //    nTotal = (nTotal + nResultMain + nHold) - nSale;
+                        //    ListMain.Add(new MResult()
+                        //    {
+                        //        partno = modelName,
+                        //        wcno = "999",
+                        //        ym = dtStart.ToString("yyyyMM"),
+                        //        bal = nTotal
+                        //    });
+                        //}
+                    }
+                    dtStart = dtStart.AddDays(1);
+                }
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            return res;
         }
     }
 }

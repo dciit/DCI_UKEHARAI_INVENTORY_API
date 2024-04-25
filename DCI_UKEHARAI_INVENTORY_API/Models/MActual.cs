@@ -52,7 +52,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public double d29 { get; set; }
         public double d30 { get; set; }
         public double d31 { get; set; }
-        public bool warning {  get; set; } = false; // สำหรับหน้า Warning 1 = Inventory balance ติดลบ 
+        public bool warning { get; set; } = false; // สำหรับหน้า Warning 1 = Inventory balance ติดลบ 
         public List<MData> listInventoryPlanning { get; set; }
 
         public List<AlGsdActpln> listActFinal { get; set; } = new List<AlGsdActpln>();
@@ -65,13 +65,22 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
 
         public List<MLastInventory> listLastInventory { get; set; } = new List<MLastInventory>();
         public EkbWipPartStock LastInventoryMain { get; set; } = new EkbWipPartStock();
+        public int totalInventoryPlanningMain { get; set; } = 0;
         public List<MHoldInventory> listHoldInventory { get; set; } = new List<MHoldInventory>();
         public List<MHoldInventory> listPDTInventory { get; set; } = new List<MHoldInventory>();
         public double LastInventory { get; set; } = 0;
         public List<InventoryBalance> InventoryBalance { get; set; } = new List<InventoryBalance>();
         public List<InventoryBalancePltype> InventoryBalancePltype { get; set; } = new List<InventoryBalancePltype>();
         public List<string> listGroupModel { get; set; } = new List<string>();
-        public List<MData> listSaleForeCaseAllCustomer {  get; set; } 
+        public List<MData> listSaleForeCaseAllCustomer { get; set; }
+        public List<MDelivery> listDelivery { get; set; } = new List<MDelivery>();
+        public List<MData> listInventoryPlanningMain { get; set; } = new List<MData>();
+    }
+
+    public class MDelivery
+    {
+        public string pltype { get; set; }
+        public List<MData> data { get; set; } = new List<MData>();
     }
     public class InventoryBalancePltype
     {
@@ -82,8 +91,9 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
     public class MData
     {
         public string date { get; set; }
-        public double value { get; set; }
-        public string? customer {  get; set; }
+        public double value { get; set; } = 0;
+        public string? customer { get; set; }
+        public string? pltype { get; set; }
     }
     public class InventoryBalance
     {
