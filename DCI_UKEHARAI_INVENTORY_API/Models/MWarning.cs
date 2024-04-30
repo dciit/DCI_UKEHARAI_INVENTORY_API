@@ -12,6 +12,7 @@
         public List<MData> listSale { get; set; } = new List<MData>();
         public List<MData> listInventory { get; set; } = new List<MData>();
         public List<MWarningExcel>? listSaleExcel { get; set; } = new List<MWarningExcel>();
+        public double? inbound { get; set; } = 0;
     }
 
     public class MWarningExcel

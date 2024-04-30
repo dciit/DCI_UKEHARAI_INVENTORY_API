@@ -377,6 +377,28 @@ order by model";
             return res;
         }
 
+        internal List<MInbound> GetInbound(string sDate, string fDate,string type = "")
+        {
+
+            List<MInbound> res = new List<MInbound>();
+            OracleCommand strInWH = new OracleCommand();
+            strInWH.CommandText = $@"SELECT TO_CHAR(W.ASTDATE,'YYYY-MM-DD') AS ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE, SUM(W.ASTQTY) ASTQTY 
+FROM SE.WMS_ASSORT W
+WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (type == "IN" || type == "OUT")) ? (" AND W.ASTTYPE = '" + type + "'") : "") + "AND TO_CHAR(astdate,'YYYY-MM-DD') BETWEEN '" + sDate + "' AND '" + fDate + "' GROUP BY W.ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE";
+            DataTable dt = _ALPHAPD.Query(strInWH);
+            foreach (DataRow dr in dt.Rows)
+            {
+                MInbound item = new MInbound();
+                item.astDate = dr["ASTDATE"].ToString();
+                item.model = dr["MODEL"].ToString();
+                item.pltype = dr["PLTYPE"].ToString();
+                item.astQty = dr["ASTQTY"].ToString() != "" ? int.Parse(dr["ASTQTY"].ToString()) : 0;
+                item.astType = dr["ASTTYPE"].ToString();
+                res.Add(item);
+            }
+            return res;
+        }
+
         internal List<GstSalMdl> GetSKU()
         {
             List<GstSalMdl> rGstSalMdl = new List<GstSalMdl>();
@@ -399,7 +421,7 @@ order by model";
             return rGstSalMdl;
         }
 
-        internal List<MData> getInvPlnMain(string ym, string model , List<EkbWipPartStock> LastInventory, List<AlSaleForecaseMonth> ListSale, List<MHoldInventory> ListHold, List<MMainResult> ListMain, List<MHoldInventory> rInvHold)
+        internal List<MData> getInvPlnMain(string ym, string model, List<EkbWipPartStock> LastInventory, List<AlSaleForecaseMonth> ListSale, List<MHoldInventory> ListHold, List<MMainResult> ListMain, List<MHoldInventory> rInvHold)
         {
             List<MData> res = new List<MData>(); // IS RESPONSE
             try
@@ -422,17 +444,17 @@ order by model";
                     {
                         List<MMainResult> rResultMain = ListMain.Where(x => x.shiftDate.Substring(8, 2) == dd).ToList();
                         int InvMain = rResultMain.Count > 0 ? rResultMain.FirstOrDefault().cnt : 0;
-                        total -= InvMain;
+                        //total -= InvMain;
                         total -= sale;
                     }
                     else
                     {
-                        if (model == "1Y056BCBX1T#A")
-                        {
-                            Console.WriteLine("asd");
-                        }
+                        //if (model == "1Y056BCCX1T#A")
+                        //{
+                        //    Console.WriteLine("asd");
+                        //}
                         string PrevDD = dtStart.AddDays(-1).ToString("dd");
-                        List<MMainResult> rResultMain = ListMain.Where(x => x.shiftDate.Substring(8, 2) == PrevDD && x.shiftDate.Substring(5,2) == mm).ToList();
+                        List<MMainResult> rResultMain = ListMain.Where(x => x.shiftDate.Substring(8, 2) == PrevDD && x.shiftDate.Substring(5, 2) == mmmm.ToString("D2")).ToList();
                         int InvMain = rResultMain.Count > 0 ? rResultMain.FirstOrDefault().cnt : 0;
                         //int InvHold = rInvHold.Count > 0 ? rInvHold.Sum(x => int.Parse(x.balstk)) : 0;
                         int InvHold = 0;
@@ -482,7 +504,7 @@ order by model";
                     dtStart = dtStart.AddDays(1);
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Console.WriteLine(e.Message);
             }

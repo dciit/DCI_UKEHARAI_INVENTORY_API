@@ -945,6 +945,8 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             List<MWarning> res = new List<MWarning>();
             DateTime dtStartWarning = DateTime.Now;
             DateTime dtEndWarning = dtStartWarning.AddDays(10);
+            string yNow = dtStartWarning.ToString("yyyy");
+            string mNow = dtStartWarning.ToString("yyyy");
             List<string> rYM = new List<string>();
             if (dtStartWarning.Month != dtEndWarning.Month) // เช็คว่า เดือนเริ่ม เดือนสิ้นสุด ต่างกันหรือไม่ ? สำหรับ where table schema D1-31
             {
@@ -956,6 +958,10 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 rYM.Add(dtStartWarning.ToString("yyyyMM"));
             }
             // (##) 
+
+            // (##) GET <IN> WH
+            List<MInbound> rInbound = serv.GetInbound(dtStartWarning.ToString("yyyy-MM-dd"), dtStartWarning.ToString("yyyy-MM-dd"));
+            // (##)
 
             // (##) GET MASTER
             string ymd = DateTime.Now.ToString("yyyyMMdd");
@@ -978,7 +984,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             List<PnCompressor> rModelDetail = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
             // (##)
 
-            foreach (string oModel in rModel.Select(x=>x.Model).Distinct().ToList())
+            foreach (string oModel in rModel.Select(x => x.Model).Distinct().ToList())
             {
                 bool warning = false;
                 List<string> rCustomer = new List<string>();
@@ -995,6 +1001,16 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 string ymdLoop = dtLoop.ToString("yyyyMMdd");
                 List<MInventory> oInventory = rInventory.Where(x => x.model.Trim() == model).ToList(); // (##) find Inventory of day by field model, date
                 double nInventory = oInventory.Count > 0 ? oInventory.Sum(x => double.Parse(x.cnt)) : 0;
+
+                // ---------- CHECK HAVE INBOUND  ------------//
+                MInbound ItemInBound = rInbound.FirstOrDefault(x => x.model == model);
+                if (ItemInBound != null)
+                {
+                    nInventory = nInventory + ItemInBound.astQty;
+                    item.inbound = ItemInBound.astQty;
+                }
+                // --------------------- END ------------------//
+
                 item.inventory = nInventory;
                 List<MPltypeOfCustomer> rPltypeOfCustomer = new List<MPltypeOfCustomer>();
 
@@ -1002,35 +1018,32 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 {
                     MData mSale = new MData(); // Sale of day
                     MData mInventory = new MData(); // Inv:accu - Sale of day
-                    if (model == "1YC25DXD#A")
-                    {
-                        Console.WriteLine("asdsd");
-                    }
+
                     List<AlSaleForecaseMonth> rSale = rSaleForecase.Where(x => x.ModelName == model).ToList();
                     List<string> rCustomerOfSalePerDay = rSale.Select(x => x.Customer).Distinct().ToList();
                     double nSumSaleOfCustomerPerDay = 0;
                     foreach (string customer in rCustomerOfSalePerDay)
                     {
                         List<AlSaleForecaseMonth> oSale = rSale.Where(x => x.Customer == customer).ToList();
-                        double nSale = oSale.Where(x=>x.Ym == dtLoop.ToString("yyyyMM") && x.Customer == customer).Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
+                        double nSale = oSale.Where(x => x.Ym == dtLoop.ToString("yyyyMM") && x.Customer == customer).Sum(x => int.Parse(x.GetType().GetProperty("D" + dtLoop.ToString("dd")).GetValue(x).ToString()));
                         //if (nSale > 0)
                         //{
-                            nSumSaleOfCustomerPerDay = nSumSaleOfCustomerPerDay + nSale;
-                            rCustomer.Add(customer);
-                            rPltype.Add(oSale.Select(x => x.Pltype).FirstOrDefault());
-                            MPltypeOfCustomer oPltypeOfCustomer = new MPltypeOfCustomer();
-                            int index = rPltypeOfCustomer.FindIndex(x => x.customer == customer);
-                            if (index < 0)
-                            {
-                                oPltypeOfCustomer.customer = customer;
-                                oPltypeOfCustomer.pltype.Add(oSale.Select(x => x.Pltype).FirstOrDefault());
-                                rPltypeOfCustomer.Add(oPltypeOfCustomer);
-                            }
-                            else
-                            {
-                                rPltypeOfCustomer[index].pltype.Add(oSale.Select(x => x.Pltype).FirstOrDefault());
-                                rPltypeOfCustomer[index].pltype = rPltypeOfCustomer[index].pltype.Distinct().ToList();
-                            }
+                        nSumSaleOfCustomerPerDay = nSumSaleOfCustomerPerDay + nSale;
+                        rCustomer.Add(customer);
+                        rPltype.Add(oSale.Select(x => x.Pltype).FirstOrDefault());
+                        MPltypeOfCustomer oPltypeOfCustomer = new MPltypeOfCustomer();
+                        int index = rPltypeOfCustomer.FindIndex(x => x.customer == customer);
+                        if (index < 0)
+                        {
+                            oPltypeOfCustomer.customer = customer;
+                            oPltypeOfCustomer.pltype.Add(oSale.Select(x => x.Pltype).FirstOrDefault());
+                            rPltypeOfCustomer.Add(oPltypeOfCustomer);
+                        }
+                        else
+                        {
+                            rPltypeOfCustomer[index].pltype.Add(oSale.Select(x => x.Pltype).FirstOrDefault());
+                            rPltypeOfCustomer[index].pltype = rPltypeOfCustomer[index].pltype.Distinct().ToList();
+                        }
                         //}
                     }
                     mSale.date = dtLoop.ToString("yyyyMMdd");
