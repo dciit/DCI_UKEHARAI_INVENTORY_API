@@ -12,6 +12,7 @@ using System.Runtime.Intrinsics.Arm;
 
 namespace DCI_UKEHARAI_INVENTORY_API.Controllers
 {
+    // A001 (20240528 21:04) : แก้ไขการเรียกข้อมูลแผนการขาย โดยหาก lrev = 999 (แจกจ่าย) ใช้งานได้เลย แต่ถ้าไม่ (lrev != 999) ให้ไปใช้ rev, lrev ก่อนหน้า เช่น ปัจจุบัน rev = 10 && lrev = 10 จะได้ filter rev = 9 (10-1) , lrev = 10
     [ApiController]
     [Route("[controller]")]
     public class UkeharaiController : Controller
@@ -368,6 +369,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Controllers
             string ym = param.ym;
             string year = ym.Substring(0, 4);
             string month = ym.Substring(4, 2);
+            DateTime dtFilter = new DateTime(int.Parse(year), int.Parse(month), 1);
             int dayOfMonth = DateTime.DaysInMonth(int.Parse(year), int.Parse(month));
             List<MInbound> mInbounds = new List<MInbound>();
 
@@ -539,8 +541,8 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             foreach (DataRow dr in dtDelivery.Rows)
             {
                 MOSW03Delivery oSW03Delivery = new MOSW03Delivery();
-                oSW03Delivery.model = dr["MODEL"].ToString();
-                oSW03Delivery.pltype = dr["PLTYPE"].ToString();
+                oSW03Delivery.model = dr["MODEL"].ToString().Trim();
+                oSW03Delivery.pltype = dr["PLTYPE"].ToString().Trim();
                 oSW03Delivery.cfdate = dr["CFDATE"].ToString();
                 oSW03Delivery.ifdate = dr["IFDATE"].ToString();
                 oSW03Delivery.qty = Convert.ToInt32(dr["QTY"].ToString());
@@ -568,7 +570,29 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             //List<>
             List<PnCompressor> rModel = serv.getModels();
             List<string> rModelType = rModel.Select(x => x.ModelType).ToList();
-            List<AlSaleForecaseMonth> ListSaleForecast = _DBSCM.AlSaleForecaseMonths.Where(x => x.Ym == ym && (x.Rev == x.Lrev || x.Lrev == "999")).ToList();
+
+
+            /* A001 */
+            int rev = 0;
+            int lrev = 0;
+            SqlCommand sqlCheckVersion = new SqlCommand();
+            sqlCheckVersion.CommandText = @"SELECT TOP(1) REV,LREV FROM [dbSCM].[dbo].[AL_SaleForecaseMonth] WHERE ym LIKE '" + year + "%'   order by CAST(rev as int) desc , CAST(lrev as int) desc";
+            DataTable dtGetVersion = _SQLSCM.Query(sqlCheckVersion);
+            if (dtGetVersion.Rows.Count > 0)
+            {
+
+                rev = Convert.ToInt32(dtGetVersion.Rows[0]["REV"].ToString());
+                lrev = Convert.ToInt32(dtGetVersion.Rows[0]["LREV"].ToString());
+                // ถ้าเจอ lrev = 999 ใช้งานได้เลย เนื่องจาก แจกจ่าย แล้ว
+                if (lrev != 999)  // ค้นหา (rev - 1), lrev = (rev - 1) เพื่อหาข้อมูลที่ Distribution ก่อนหน้านี้
+                {
+                    rev = rev - 1;
+                }
+            }
+            /* A001 */
+
+            List<AlSaleForecaseMonth> ListSaleForecast = _DBSCM.AlSaleForecaseMonths.Where(x => x.Ym == ym && x.Rev == rev.ToString() && x.Lrev == lrev.ToString()).ToList();
+            //List<AlSaleForecaseMonth> ListSaleForecast = _DBSCM.AlSaleForecaseMonths.Where(x => x.Ym == ym && (x.Rev == x.Lrev || x.Lrev == "999")).ToList();
             List<AlGsdCurpln> rCurrentPlan = _DBSCM.AlGsdCurplns.Where(x => x.Prdym == ym).ToList();
             List<DstWipPrd> rResultFinal = new List<DstWipPrd>();
             OracleCommand strGetResultFinal = new OracleCommand();
@@ -604,6 +628,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             {
                 foreach (string oModel in rModel.Select(o => o.Model).Distinct())
                 {
+                    bool show = true;
                     List<MHoldInventory> rInvHoldOfModel = oHoldInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList();
                     List<MDelivery> rDelivery = new List<MDelivery>();
                     string modelGroup = serv.getModelGroup(oModel);
@@ -615,10 +640,14 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     oResponse.sebango = sebango;
                     oResponse.modelCode = sebango;
 
+
                     List<MMainResult> rMainResult = mMainResult.Where(x => x.Model_No == sebango || x.ModelName == oModel.Trim()).ToList();
 
                     // (1) GET,SET SALE FORECASE
-                    List<AlSaleForecaseMonth> rSaleForecase = ListSaleForecast.Where(x => x.ModelName == oModel && x.Ym == ym && x.Lrev == "999").ToList();
+                    //List<AlSaleForecaseMonth> rSaleForecase = ListSaleForecast.Where(x => x.ModelName == oModel && x.Ym == ym && x.Lrev == "999").ToList();
+                    
+                    /* A001 */ 
+                    List<AlSaleForecaseMonth> rSaleForecase = ListSaleForecast.Where(x => x.ModelName == oModel && x.Ym == ym && x.Rev == rev.ToString() && x.Lrev == lrev.ToString() ).ToList();
                     if (rSaleForecase != null)
                     {
                         oResponse.listSaleForecast = rSaleForecase;
@@ -645,11 +674,6 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                         oResponse.totalInventoryPlanningMain = 0;
                     }
 
-                    //if (oModel == "1Y056BCBX1T#A")
-                    //{
-                    //    Console.WriteLine("asd");
-                    //}
-
                     // (2) GET INVENTORY
                     List<MInventory> rInventory = allInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList();
                     if (rInventory.Count > 0)
@@ -659,6 +683,8 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                             oResponse.Inventory = rInventory;
                         }
                     }
+
+
 
                     // (3) INBOUND
                     List<MInbound> rInbound = mInbounds.Where(x => x.model == oModel).OrderBy(x => x.astDate).ToList();
@@ -674,6 +700,10 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                             oResponse.listCurpln.Add(oCurrentPlan);
                         }
                     }
+
+                    // --------- CHECK IF HAVE (PLAN,SALE,INV) IS SHOW  --------//
+                    //if (rSaleForecase.Count > 0 && rInventory.Count > 0 && oResponse.listCurpln.Count > 0)
+                    //{
 
                     // (6) INVENTORY PDT
                     oResponse.listPDTInventory = oPDTInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList();
@@ -694,10 +724,10 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     foreach (var item in GroupPltype)
                     {
                         string pltype = item.pltype;
-                        DateTime dateDelivery = dtNow;
+                        DateTime dateDelivery = dtFilter;
                         MDelivery oDelivery = new MDelivery();
                         oDelivery.pltype = pltype;
-                        while (dateDelivery.Date < new DateTime(dtNow.Year, dtNow.Month, DateTime.DaysInMonth(dtNow.Year, dtNow.Month)).AddDays(1))
+                        while (dateDelivery.Date < new DateTime(dtFilter.Year, dtFilter.Month, DateTime.DaysInMonth(dtFilter.Year, dtFilter.Month)).AddDays(1))
                         {
                             string strDtDelivery = dateDelivery.ToString("yyyyMMdd");
                             MData iDelivery = new MData();
@@ -850,6 +880,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                         }
                         dtStartInvPln = dtStartInvPln.AddDays(1);
                         rInventoryPlanning.Add(oInvPlnOfDay);
+                        oResponse.totalInventoryPlanning = nInvPln;
                     }
 
                     if (oResponse.warning == true)
@@ -916,6 +947,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     }
                     oResponse.listActFinal = itemFinal;
                     response.Add(oResponse);
+                    //}
                 }
             }
 
@@ -964,7 +996,15 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             // (##)
 
             // (##) GET MASTER
-            string ymd = DateTime.Now.ToString("yyyyMMdd");
+            string ymd = "";
+            if (DateTime.Now.Hour < 8)
+            {
+                ymd = DateTime.Now.AddDays(-1).ToString("yyyyMMdd");
+            }
+            else
+            {
+                ymd = DateTime.Now.ToString("yyyyMMdd");
+            }
             List<MInventory> rInventory = new List<MInventory>();
             SqlCommand strGetUkeAlphaInv = new SqlCommand();
             strGetUkeAlphaInv.CommandText = @"SELECT * FROM UKE_ALPHA_INVENTORY WHERE YMD = @YMD";
@@ -980,7 +1020,27 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
 
             List<GstSalMdl> rSKU = serv.GetSKU();
             List<PnCompressor> rModel = serv.getModels();
-            List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == "999" && rYM.Contains(x.Ym)).ToList();
+            //List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == "999" && rYM.Contains(x.Ym)).ToList();
+
+            /* A001 */
+            int rev = 0;
+            int lrev = 0;
+            SqlCommand sqlCheckVersion = new SqlCommand();
+            sqlCheckVersion.CommandText = @"SELECT TOP(1) REV,LREV FROM [dbSCM].[dbo].[AL_SaleForecaseMonth] WHERE ym LIKE '" + yNow + "%'   order by CAST(rev as int) desc , CAST(lrev as int) desc";
+            DataTable dtGetVersion = _SQLSCM.Query(sqlCheckVersion);
+            if (dtGetVersion.Rows.Count > 0)
+            {
+
+                rev = Convert.ToInt32(dtGetVersion.Rows[0]["REV"].ToString());
+                lrev = Convert.ToInt32(dtGetVersion.Rows[0]["LREV"].ToString());
+                if (lrev != 999) 
+                {
+                    rev = rev - 1;
+                }
+            }
+            List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Rev == rev.ToString() && x.Lrev == lrev.ToString() && rYM.Contains(x.Ym)).ToList();
+            /* A001 */
+
             List<PnCompressor> rModelDetail = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
             // (##)
 
@@ -1095,7 +1155,23 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     item.pltype = rPltypeOfCustomer;
                 }
             }
-            return Ok(res);
+            List<MWarning> resSort = new List<MWarning>();
+            List<MSBUSort> rSBUSort = new List<MSBUSort>();
+            SqlCommand sqlGetDictSort = new SqlCommand();
+            sqlGetDictSort.CommandText = @"SELECT Dict_Name FROM [dbSCM].[dbo].[UKE_Dict] ORDER BY cast(Dict_RefCode as int) asc";
+            DataTable dtSort = _SQLSCM.Query(sqlGetDictSort);
+            foreach (DataRow dr in dtSort.Rows)
+            {
+                MSBUSort item = new MSBUSort();
+                item.Dict_Name = dr["Dict_Name"].ToString().Replace(Environment.NewLine, "");
+                rSBUSort.Add(item);
+            }
+            foreach (MSBUSort oSort in rSBUSort)
+            {
+                List<MWarning> rFindSBUSort = res.Where(x => x.sbu == oSort.Dict_Name.Replace("\\r\n", "")).ToList();
+                resSort = resSort.Concat(rFindSBUSort).ToList();
+            }
+            return Ok(resSort);
         }
 
 

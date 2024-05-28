@@ -409,7 +409,7 @@ WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (t
             {
                 GstSalMdl oGstSalMdl = new GstSalMdl();
                 string modelName = drGstSalMdl["MODELNAME"].ToString();
-                string sku = drGstSalMdl["SKU"].ToString();
+                string sku = drGstSalMdl["SKU"].ToString().Replace(@"\r\n","") ;
                 if (sku != "")
                 {
                     oGstSalMdl.modelName = modelName;

@@ -54,6 +54,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public double d31 { get; set; }
         public bool warning { get; set; } = false; // สำหรับหน้า Warning 1 = Inventory balance ติดลบ 
         public List<MData> listInventoryPlanning { get; set; }
+        public double totalInventoryPlanning { get; set; } = 0;
 
         public List<AlGsdActpln> listActFinal { get; set; } = new List<AlGsdActpln>();
         public List<AlGsdCurpln> listCurpln { get; set; } = new List<AlGsdCurpln>();
