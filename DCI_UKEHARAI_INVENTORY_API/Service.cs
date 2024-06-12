@@ -354,30 +354,32 @@ namespace DCI_UKEHARAI_INVENTORY_API
             return modelGroup;
         }
 
-        internal List<MInventory> GetInventory()
-        {
-            List<MInventory> res = new List<MInventory>();
-            OracleCommand str = new OracleCommand();
-            str.CommandText = @"select model, pltype, count(serial) cnt,to_char(current_date,'YYYY-MM-DD') as currentDate
-from fh001 
-where comid='DCI' and nwc in ('DCI','SKO')  
-  and locacode like '%'
-group by model, pltype
-order by model";
-            DataTable dt = _ALPHAPD.Query(str);
-            foreach (DataRow dr in dt.Rows)
-            {
-                MInventory item = new MInventory();
-                item.model = dr["model"].ToString();
-                item.date = dr["currentDate"].ToString();
-                item.pltype = dr["pltype"].ToString();
-                item.cnt = dr["cnt"].ToString();
-                res.Add(item);
-            }
-            return res;
-        }
+        //        internal List<MInventory> GetInventory()
+        //        {
+        //            List<MInventory> res = new List<MInventory>();
+        //            OracleCommand str = new OracleCommand();
+        //            str.CommandText = @"select model, pltype, count(serial) cnt,to_char(current_date,'YYYY-MM-DD') as currentDate
+        //from fh001 
+        //where comid='DCI' and nwc in ('DCI','SKO')  
+        //  and locacode like '%'
+        //group by model, pltype
+        //order by model";
 
-        internal List<MInbound> GetInbound(string sDate, string fDate,string type = "")
+        //            DataTable dt = _ALPHAPD.Query(str);
+        //            foreach (DataRow dr in dt.Rows)
+        //            {
+        //                MInventory item = new MInventory();
+        //                item.model = dr["model"].ToString();
+        //                item.date = dr["currentDate"].ToString();
+        //                item.pltype = dr["pltype"].ToString();
+        //                item.cnt = dr["cnt"].ToString();
+        //                res.Add(item);
+        //            }
+        //            return res;
+        //        }
+
+
+        internal List<MInbound> GetInbound(string sDate, string fDate, string type = "")
         {
 
             List<MInbound> res = new List<MInbound>();
@@ -409,7 +411,7 @@ WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (t
             {
                 GstSalMdl oGstSalMdl = new GstSalMdl();
                 string modelName = drGstSalMdl["MODELNAME"].ToString();
-                string sku = drGstSalMdl["SKU"].ToString().Replace(@"\r\n","") ;
+                string sku = drGstSalMdl["SKU"].ToString().Replace(@"\r\n", "");
                 if (sku != "")
                 {
                     oGstSalMdl.modelName = modelName;
@@ -420,6 +422,7 @@ WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (t
             }
             return rGstSalMdl;
         }
+
 
         internal List<MData> getInvPlnMain(string ym, string model, List<EkbWipPartStock> LastInventory, List<AlSaleForecaseMonth> ListSale, List<MHoldInventory> ListHold, List<MMainResult> ListMain, List<MHoldInventory> rInvHold)
         {
@@ -509,6 +512,74 @@ WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (t
                 Console.WriteLine(e.Message);
             }
             return res;
+        }
+        internal MSaleVersion getSaleVersion(string year)
+        {
+            MSaleVersion oSaleVersion = new MSaleVersion();
+            //int rev = 0;
+            //int lrev = 0;
+            //SqlCommand sqlCheckVersion = new SqlCommand();
+            //sqlCheckVersion.CommandText = @"SELECT TOP(1) REV,LREV FROM [dbSCM].[dbo].[AL_SaleForecaseMonth] WHERE ym LIKE '" + year + "%'   order by CAST(rev as int) desc , CAST(lrev as int) desc";
+            //DataTable dtGetVersion = DBSCM.Query(sqlCheckVersion);
+            //if (dtGetVersion.Rows.Count > 0)
+            //{
+            //    oSaleVersion.foundData = true;
+            //    rev = Convert.ToInt32(dtGetVersion.Rows[0]["REV"].ToString());
+            //    lrev = Convert.ToInt32(dtGetVersion.Rows[0]["LREV"].ToString());
+            //    // ถ้าเจอ lrev = 999 ใช้งานได้เลย เนื่องจาก แจกจ่าย แล้ว
+            //    if (lrev != 999)  // ค้นหา (rev - 1), lrev = (rev - 1) เพื่อหาข้อมูลที่ Distribution ก่อนหน้านี้
+            //    {
+            //        rev = rev - 1;
+            //    }
+            //}
+            //oSaleVersion.rev = rev;
+            //oSaleVersion.lrev = lrev;
+
+
+
+            string[] ver = new string[3];  //  1 = HAVE DATA, 2 = REV, 3 = LREV
+            SqlCommand sqlCheckVersion = new SqlCommand();
+            sqlCheckVersion.CommandText = @"SELECT TOP(1) REV,LREV FROM [dbSCM].[dbo].[AL_SaleForecaseMonth] WHERE ym LIKE '" + year + "%'   order by CAST(rev as int) desc , CAST(lrev as int) desc";
+            DataTable dtCheckVersion = DBSCM.Query(sqlCheckVersion);
+            if (dtCheckVersion.Rows.Count > 0)
+            {
+                oSaleVersion.foundData = true;
+                oSaleVersion.rev = int.Parse(dtCheckVersion.Rows[0]["REV"].ToString());
+                oSaleVersion.lrev = int.Parse(dtCheckVersion.Rows[0]["LREV"].ToString());
+            }
+            else
+            {
+                oSaleVersion.foundData = false;
+                oSaleVersion.rev = 0;
+                oSaleVersion.lrev = 0;
+            }
+            return oSaleVersion;
+        }
+
+        internal List<WmsStkBal> MWSGetInventory(int yyyy, int mm)
+        {
+            List<WmsStkBal> rInventory = new List<WmsStkBal>();
+            string ym = new DateTime(yyyy, mm, 01, 0, 0, 0).ToString("yyyyMM");
+
+            
+            OracleCommand str = new OracleCommand();
+            str.CommandText = @"SELECT W.YM,  W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
+            FROM SE.WMS_STKBAL W
+            WHERE comid= 'DCI' and ym =  :YM and wc in ('DCI','SKO')
+            GROUP BY W.YM, W.MODEL";
+            str.Parameters.Add(new OracleParameter(":YM", ym));
+            DataTable dtLastInventory = _ALPHAPD.Query(str);
+            foreach (DataRow dr in dtLastInventory.Rows)
+            {
+                WmsStkBal mInventory = new WmsStkBal();
+                mInventory.ym = dr["YM"].ToString();
+                //mInventory.wc = dr["WC"].ToString();
+                mInventory.model = dr["MODEL"].ToString();
+                mInventory.lbalstk = dr["LBALSTK"].ToString();
+                mInventory.balstk = dr["BALSTK"].ToString();
+                rInventory.Add(mInventory);
+            }
+            return rInventory;
         }
     }
 }

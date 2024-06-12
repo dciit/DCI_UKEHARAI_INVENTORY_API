@@ -60,11 +60,8 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public List<AlGsdCurpln> listCurpln { get; set; } = new List<AlGsdCurpln>();
         public List<AlSaleForecaseMonth> listSaleForecast { get; set; } = new List<AlSaleForecaseMonth>();
         public List<MInbound> listInbound { get; set; } = new List<MInbound>();
-        public List<string> listPltype { get; set; } = new List<string>();
         public List<MInventory> Inventory { get; set; } = new List<MInventory>();
         public List<MMainResult> listActMain { get; set; } = new List<MMainResult>();
-
-        public List<MLastInventory> listLastInventory { get; set; } = new List<MLastInventory>();
         public EkbWipPartStock LastInventoryMain { get; set; } = new EkbWipPartStock();
         public int totalInventoryPlanningMain { get; set; } = 0;
         public List<MHoldInventory> listHoldInventory { get; set; } = new List<MHoldInventory>();
@@ -72,10 +69,12 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public double LastInventory { get; set; } = 0;
         public List<InventoryBalance> InventoryBalance { get; set; } = new List<InventoryBalance>();
         public List<InventoryBalancePltype> InventoryBalancePltype { get; set; } = new List<InventoryBalancePltype>();
-        public List<string> listGroupModel { get; set; } = new List<string>();
+  
         public List<MData> listSaleForeCaseAllCustomer { get; set; }
         public List<MDelivery> listDelivery { get; set; } = new List<MDelivery>();
         public List<MData> listInventoryPlanningMain { get; set; } = new List<MData>();
+        public List<MInventory> listInventoryPlanningMainOrFinal { get; set; } = new List<MInventory>();
+        public decimal? inventoryPlanningMainOrFinalEnd { get; set; } = 0;
     }
 
     public class MDelivery
