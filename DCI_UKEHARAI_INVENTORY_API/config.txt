@@ -1,0 +1,1 @@
+Scaffold-DbContext "Server=192.168.226.86;Database=dbSCM;TrustServerCertificate=True;uid=sa;password=decjapan" Microsoft.EntityFrameworkCore.SqlServer -OutputDir Models -force -t  PN_Compressor,AL_GSD_ACTPLN,UKE_CURPLN,EKB_WIP_PART_STOCK,AL_SaleForecaseMonth,WMS_MDW27_MODEL_MASTER -Context DBSCM  -ContextDir "Contexts"

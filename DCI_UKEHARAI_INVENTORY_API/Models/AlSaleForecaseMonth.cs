@@ -9,6 +9,8 @@ public partial class AlSaleForecaseMonth
 
     public string Ym { get; set; } = null!;
 
+    public string? Diameter { get; set; }
+
     public string? ModelCode { get; set; }
 
     public string? ModelName { get; set; }

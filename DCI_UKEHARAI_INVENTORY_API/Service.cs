@@ -379,14 +379,14 @@ namespace DCI_UKEHARAI_INVENTORY_API
         //        }
 
 
-        internal List<MInbound> GetInbound(string sDate, string fDate, string type = "")
+        internal List<MInbound> GetInbound(DateTime sDate, DateTime fDate, string type = "")
         {
 
             List<MInbound> res = new List<MInbound>();
             OracleCommand strInWH = new OracleCommand();
             strInWH.CommandText = $@"SELECT TO_CHAR(W.ASTDATE,'YYYY-MM-DD') AS ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE, SUM(W.ASTQTY) ASTQTY 
 FROM SE.WMS_ASSORT W
-WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (type == "IN" || type == "OUT")) ? (" AND W.ASTTYPE = '" + type + "'") : "") + "AND TO_CHAR(astdate,'YYYY-MM-DD') BETWEEN '" + sDate + "' AND '" + fDate + "' GROUP BY W.ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE";
+WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (type == "IN" || type == "OUT")) ? (" AND W.ASTTYPE = '" + type + "'") : "") + "AND TO_CHAR(astdate,'YYYY-MM-DD') BETWEEN '" + sDate.AddHours(-8).ToString("yyyy-MM-dd") + "' AND '" + fDate.AddDays(-8).ToString("yyyy-MM-dd") + "' GROUP BY W.ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE";
             DataTable dt = _ALPHAPD.Query(strInWH);
             foreach (DataRow dr in dt.Rows)
             {
@@ -560,8 +560,6 @@ WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (t
         {
             List<WmsStkBal> rInventory = new List<WmsStkBal>();
             string ym = new DateTime(yyyy, mm, 01, 0, 0, 0).ToString("yyyyMM");
-
-            
             OracleCommand str = new OracleCommand();
             str.CommandText = @"SELECT W.YM,  W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
             FROM SE.WMS_STKBAL W

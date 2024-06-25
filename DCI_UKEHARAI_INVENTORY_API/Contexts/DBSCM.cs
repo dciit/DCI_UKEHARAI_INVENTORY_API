@@ -16,13 +16,9 @@ public partial class DBSCM : DbContext
     {
     }
 
-    public virtual DbSet<AlCustomer> AlCustomers { get; set; }
-
     public virtual DbSet<AlGsdActpln> AlGsdActplns { get; set; }
 
     public virtual DbSet<AlGsdCurpln> AlGsdCurplns { get; set; }
-
-    public virtual DbSet<AlPalletTypeMapping> AlPalletTypeMappings { get; set; }
 
     public virtual DbSet<AlSaleForecaseMonth> AlSaleForecaseMonths { get; set; }
 
@@ -32,6 +28,8 @@ public partial class DBSCM : DbContext
 
     public virtual DbSet<UkeCurpln> UkeCurplns { get; set; }
 
+    public virtual DbSet<WmsMdw27ModelMaster> WmsMdw27ModelMasters { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see http://go.microsoft.com/fwlink/?LinkId=723263.
         => optionsBuilder.UseSqlServer("Server=192.168.226.86;Database=dbSCM;TrustServerCertificate=True;uid=sa;password=decjapan");
@@ -39,22 +37,6 @@ public partial class DBSCM : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.UseCollation("Thai_CI_AS");
-
-        modelBuilder.Entity<AlCustomer>(entity =>
-        {
-            entity.HasKey(e => e.CustomerCode);
-
-            entity.ToTable("AL_Customer");
-
-            entity.Property(e => e.CustomerCode).HasMaxLength(50);
-            entity.Property(e => e.Address1).HasMaxLength(50);
-            entity.Property(e => e.Address2).HasMaxLength(50);
-            entity.Property(e => e.Address3).HasMaxLength(50);
-            entity.Property(e => e.Country).HasMaxLength(50);
-            entity.Property(e => e.CustomerName).HasMaxLength(100);
-            entity.Property(e => e.CustomerNameShort).HasMaxLength(100);
-            entity.Property(e => e.ShipCode).HasMaxLength(50);
-        });
 
         modelBuilder.Entity<AlGsdActpln>(entity =>
         {
@@ -223,31 +205,6 @@ public partial class DBSCM : DbContext
                 .HasColumnName("YM_QTY");
         });
 
-        modelBuilder.Entity<AlPalletTypeMapping>(entity =>
-        {
-            entity.HasKey(e => new { e.Plgrp, e.Pltype });
-
-            entity.ToTable("AL_PalletTypeMapping");
-
-            entity.Property(e => e.Plgrp)
-                .HasMaxLength(10)
-                .HasColumnName("PLGRP");
-            entity.Property(e => e.Pltype)
-                .HasMaxLength(20)
-                .HasColumnName("PLTYPE");
-            entity.Property(e => e.Plcode)
-                .HasMaxLength(20)
-                .HasColumnName("PLCode");
-            entity.Property(e => e.Pllevel)
-                .HasMaxLength(20)
-                .HasColumnName("PLLevel");
-            entity.Property(e => e.Plqty)
-                .HasMaxLength(20)
-                .HasColumnName("PLQty");
-            entity.Property(e => e.RackControl).HasMaxLength(20);
-            entity.Property(e => e.Remark).HasMaxLength(20);
-        });
-
         modelBuilder.Entity<AlSaleForecaseMonth>(entity =>
         {
             entity.ToTable("AL_SaleForecaseMonth");
@@ -291,6 +248,7 @@ public partial class DBSCM : DbContext
             entity.Property(e => e.D29).HasDefaultValueSql("((0))");
             entity.Property(e => e.D30).HasDefaultValueSql("((0))");
             entity.Property(e => e.D31).HasDefaultValueSql("((0))");
+            entity.Property(e => e.Diameter).HasMaxLength(20);
             entity.Property(e => e.Lrev)
                 .HasMaxLength(3)
                 .HasColumnName("LREV");
@@ -315,7 +273,7 @@ public partial class DBSCM : DbContext
         {
             entity.HasKey(e => new { e.Ym, e.Wcno, e.Partno, e.Cm }).HasName("PK_EKB_LINE_STOCK_MONIOTR");
 
-            entity.ToTable("EKB_WIP_Part_Stock");
+            entity.ToTable("EKB_WIP_PART_STOCK");
 
             entity.Property(e => e.Ym)
                 .HasMaxLength(8)
@@ -566,6 +524,62 @@ public partial class DBSCM : DbContext
             entity.Property(e => e.YmQty)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("YM_QTY");
+        });
+
+        modelBuilder.Entity<WmsMdw27ModelMaster>(entity =>
+        {
+            entity.HasKey(e => new { e.Model, e.Modelgroup, e.Pltype, e.Strloc, e.Rev, e.Lrev, e.Strdate, e.Enddate, e.Remark, e.Sebango, e.Diameter }).HasName("PK_WMS_MDW27_MODEL_MASTER_1");
+
+            entity.ToTable("WMS_MDW27_MODEL_MASTER");
+
+            entity.Property(e => e.Model)
+                .HasMaxLength(50)
+                .HasColumnName("MODEL");
+            entity.Property(e => e.Modelgroup)
+                .HasMaxLength(3)
+                .HasColumnName("MODELGROUP");
+            entity.Property(e => e.Pltype)
+                .HasMaxLength(50)
+                .HasColumnName("PLTYPE");
+            entity.Property(e => e.Strloc)
+                .HasMaxLength(50)
+                .HasColumnName("STRLOC");
+            entity.Property(e => e.Rev).HasColumnName("REV");
+            entity.Property(e => e.Lrev).HasColumnName("LREV");
+            entity.Property(e => e.Strdate)
+                .HasMaxLength(8)
+                .HasColumnName("STRDATE");
+            entity.Property(e => e.Enddate)
+                .HasMaxLength(8)
+                .HasColumnName("ENDDATE");
+            entity.Property(e => e.Remark)
+                .HasMaxLength(50)
+                .HasColumnName("REMARK");
+            entity.Property(e => e.Sebango)
+                .HasMaxLength(50)
+                .HasColumnName("SEBANGO");
+            entity.Property(e => e.Diameter)
+                .HasMaxLength(50)
+                .HasColumnName("DIAMETER");
+            entity.Property(e => e.Active)
+                .HasMaxLength(20)
+                .HasDefaultValueSql("(N'INACTIVE')")
+                .HasColumnName("ACTIVE");
+            entity.Property(e => e.Area)
+                .HasMaxLength(20)
+                .HasColumnName("AREA");
+            entity.Property(e => e.CreateBy)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("(N'every 8.30 AM')")
+                .HasColumnName("CREATE_BY");
+            entity.Property(e => e.CreateDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("CREATE_DATE");
+            entity.Property(e => e.UpdateDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("UPDATE_DATE");
         });
 
         OnModelCreatingPartial(modelBuilder);

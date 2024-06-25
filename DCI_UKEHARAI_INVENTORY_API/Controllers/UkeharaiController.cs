@@ -555,16 +555,16 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
 
 
             /* A003 */
-            List<WmsMdw27ModelMaster> rModelPltype = new List<WmsMdw27ModelMaster>();
+            List<WmsMdw27ModelMaster> rMDW27 = new List<WmsMdw27ModelMaster>();
             SqlCommand sql = new SqlCommand();
             sql.CommandText = @"SELECT MODEL,PLTYPE FROM [dbSCM].[dbo].[WMS_MDW27_MODEL_MASTER] where active = 'active' group by MODEL,PLTYPE order by model asc,pltype asc";
             DataTable dtMDW27 = _SQLSCM.Query(sql);
             foreach (DataRow dr in dtMDW27.Rows)
             {
                 WmsMdw27ModelMaster oModelPltype = new WmsMdw27ModelMaster();
-                oModelPltype.model = dr["MODEL"].ToString();
-                oModelPltype.pltype = dr["PLTYPE"].ToString();
-                rModelPltype.Add(oModelPltype);
+                oModelPltype.Model = dr["MODEL"].ToString();
+                oModelPltype.Pltype = dr["PLTYPE"].ToString();
+                rMDW27.Add(oModelPltype);
             }
             /* [E] A003 */
 
@@ -637,21 +637,24 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 rYM.Add(dtNext.AddMonths(i).ToString("yyyyMM"));
             }
             List<AlSaleForecaseMonth> rSaleForeCaseAlLCustomer = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == "999" && rYM.Contains(x.Ym)).ToList();
-            List<PnCompressor> rModelDetail = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
+            //List<PnCompressor> rModelDetail = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
+            List<WmsMdw27ModelMaster> rMdw27 = _DBSCM.WmsMdw27ModelMasters.ToList();
             DateTime dtNow = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             DateTime dtStart = DateTime.Now;
 
             //List<EkbWipPartStock> rStockCurrent = _DBSCM.EkbWipPartStocks.Where(x => x.Ym == ym && x.Ptype == "MAIN").ToList();
+            List<ModelUkeharai> rUke = new List<ModelUkeharai>();
 
             if (ym != "")
             {
-                foreach (string oModel in rModel.Select(o => o.Model).Distinct())
+                var groupModel = rMdw27.Select(o => o.Model).Distinct();
+                foreach (string oModel in rMdw27.Select(o => o.Model).Distinct())
                 {
                     bool show = true;
                     List<MHoldInventory> rInvHoldOfModel = oHoldInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList();
                     List<MDelivery> rDelivery = new List<MDelivery>();
                     string modelGroup = serv.getModelGroup(oModel);
-                    string sebango = rModelDetail.FirstOrDefault(x => x.Model == oModel) != null ? rModelDetail.FirstOrDefault(x => x.Model == oModel).ModelCode : "";
+                    string sebango = rMdw27.FirstOrDefault(x => x.Model == oModel) != null ? rMdw27.FirstOrDefault(x => x.Model == oModel).Sebango : "";
                     MActual oResponse = new MActual();
                     oResponse.ym = ym;
                     oResponse.modelGroup = modelGroup;
@@ -659,7 +662,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     oResponse.sebango = sebango;
                     oResponse.modelCode = sebango;
 
-                    List<MMainResult> rMainResult = mMainResult.Where(x => x.Model_No == sebango || x.ModelName == oModel.Trim()).ToList();
+                    List<MMainResult> rMainResult = mMainResult.Where(x => x.Model_No == sebango.Replace("0","") || x.ModelName == oModel.Trim()).ToList();
 
                     // (1) GET,SET SALE FORECASE
                     //List<AlSaleForecaseMonth> rSaleForecase = ListSaleForecast.Where(x => x.ModelName == oModel && x.Ym == ym && x.Lrev == "999").ToList();
@@ -777,24 +780,24 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                         //double TotalInventory = oLastInventory.FirstOrDefault(x => x.model.Trim() == oModel) != null ? double.Parse(oLastInventory.FirstOrDefault(x => x.model.Trim() == oModel).balstk) : 0;
 
                         /* A003 */
-                        foreach (WmsMdw27ModelMaster oMDW27 in rModelPltype.Where(x => x.model == oModel.Trim()).ToList())  /* [E]A003 */
+                        foreach (WmsMdw27ModelMaster oMDW27 in rMDW27.Where(x => x.Model == oModel.Trim()).ToList())  /* [E]A003 */
                         {
                             double TotalInventoryOfPltype = TotalInventory;
                             DateTime dtLoopPltype = DateTime.Now;
-                            double nStartInvBalancePltype = Convert.ToDouble(GroupPltype.Where(x => x.pltype == oMDW27.pltype).Sum(y => y.cnt));
+                            double nStartInvBalancePltype = Convert.ToDouble(GroupPltype.Where(x => x.pltype == oMDW27.Pltype).Sum(y => y.cnt));
                             InventoryBalancePltype oInventoryBalancePltype = new InventoryBalancePltype();
-                            oInventoryBalancePltype.pltype = oMDW27.pltype;
+                            oInventoryBalancePltype.pltype = oMDW27.Pltype;
                             oInventoryBalancePltype.modelName = oModel.Trim();
                             List<InventoryBalancePltypeData> rInventoryBalancePltypeData = new List<InventoryBalancePltypeData>();
                             while (dtLoopPltype.Date < new DateTime(dtNow.Year, dtNow.Month, DateTime.DaysInMonth(dtNow.Year, dtNow.Month)).AddDays(1))
                             {
-                                List<MOSW03Delivery> itemDelivery = mOSW03Deliveries.Where(x => x.model == oModel && x.pltype == oMDW27.pltype && x.ifdate == dtLoopPltype.ToString("yyyyMMdd")).ToList();
+                                List<MOSW03Delivery> itemDelivery = mOSW03Deliveries.Where(x => x.model == oModel && x.pltype == oMDW27.Pltype && x.ifdate == dtLoopPltype.ToString("yyyyMMdd")).ToList();
                                 int nDeliveryOfDay = 0;
                                 if (itemDelivery.Count > 0)
                                 {
                                     nDeliveryOfDay = itemDelivery.Sum(x => x.qty);
                                 }
-                                double oSaleOfPltypePerDay = rSaleForecase.Where(x => x.Pltype == oMDW27.pltype).Sum(y => Convert.ToDouble(y.GetType().GetProperty("D" + dtLoopPltype.ToString("dd")).GetValue(y).ToString()));
+                                double oSaleOfPltypePerDay = rSaleForecase.Where(x => x.Pltype == oMDW27.Pltype).Sum(y => Convert.ToDouble(y.GetType().GetProperty("D" + dtLoopPltype.ToString("dd")).GetValue(y).ToString()));
                                 nStartInvBalancePltype = (nStartInvBalancePltype - oSaleOfPltypePerDay) + nDeliveryOfDay;
                                 rInventoryBalancePltypeData.Add(new InventoryBalancePltypeData()
                                 {
@@ -973,14 +976,12 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
 
                     // (##) SET INVENTORY PLANNING
                     oResponse.listInventoryPlanning = rInventoryPlanning;
-
                     // (##) SET LIST INBOUND
                     oResponse.listInbound = resInbound;
 
                     // (##) SET INVENTORY BALANCE 
                     oResponse.InventoryBalance = rInventoryBalance;
 
-                    // (8) RESULT MAIN
                     oResponse.listActMain = rMainResult;
 
                     // (9) INVENTORY MAIN 
@@ -1024,18 +1025,18 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
         }
 
 
-        [HttpGet]
-        [Route("/GRAFANA_SUMMARY_INVENTORY_AND_SALE")]
-        public IActionResult GRAFANA_SUMMARY_INVENTORY_AND_SALE()
-        {
-            List<PnCompressor> listModel = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
-            List<string> rGroupType = listModel.Select(x => serv.getModelGroup(x.Model)).Distinct().ToList();
-            return Ok();
-        }
+        //[HttpGet]
+        //[Route("/GRAFANA_SUMMARY_INVENTORY_AND_SALE")]
+        //public IActionResult GRAFANA_SUMMARY_INVENTORY_AND_SALE()
+        //{
+        //    List<PnCompressor> listModel = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
+        //    List<string> rGroupType = listModel.Select(x => serv.getModelGroup(x.Model)).Distinct().ToList();
+        //    return Ok();
+        //}
 
-        [HttpPost]
-        [Route("/warning/get")]
-        public IActionResult GetWarningData()
+        [HttpGet]
+        [Route("/warning/get/{ym}/{inventorytype}")]
+        public IActionResult GetWarningData(string ym, string inventorytype)
         {
             // (##) สร้างตัวแปร
             // (##) เก็บข้อมูลการขาย
@@ -1057,7 +1058,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             // (##) 
 
             // (##) GET <IN> WH
-            List<MInbound> rInbound = serv.GetInbound(dtStartWarning.ToString("yyyy-MM-dd"), dtStartWarning.ToString("yyyy-MM-dd"));
+            List<MInbound> rInbound = serv.GetInbound(dtStartWarning, dtEndWarning);
             // (##)
 
             // (##) GET MASTER
@@ -1071,18 +1072,41 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 ymd = DateTime.Now.ToString("yyyyMMdd");
             }
             List<MInventory> rInventory = new List<MInventory>();
-            SqlCommand strGetUkeAlphaInv = new SqlCommand();
-            strGetUkeAlphaInv.CommandText = @"SELECT * FROM UKE_ALPHA_INVENTORY WHERE YMD = @YMD";
-            strGetUkeAlphaInv.Parameters.Add(new SqlParameter("@YMD", ymd));
-            DataTable dtInv = _SQLSCM.Query(strGetUkeAlphaInv);
-            foreach (DataRow dr in dtInv.Rows)
+            if (inventorytype == "freeze")
             {
-                MInventory item = new MInventory();
-                item.cnt = dr["CNT"].ToString() != "" ? dr["CNT"].ToString() : "0";
-                item.model = dr["MODEL"].ToString();
-                rInventory.Add(item);
+                SqlCommand strGetUkeAlphaInv = new SqlCommand();
+                strGetUkeAlphaInv.CommandText = @"SELECT * FROM UKE_ALPHA_INVENTORY WHERE YMD = @YMD";
+                strGetUkeAlphaInv.Parameters.Add(new SqlParameter("@YMD", ymd));
+                DataTable dtInv = _SQLSCM.Query(strGetUkeAlphaInv);
+                foreach (DataRow dr in dtInv.Rows)
+                {
+                    MInventory item = new MInventory();
+                    item.cnt = dr["CNT"].ToString() != "" ? dr["CNT"].ToString() : "0";
+                    item.model = dr["MODEL"].ToString();
+                    rInventory.Add(item);
+                }
             }
-
+            else // inventory = real-time
+            {
+                OracleCommand strGetLastInventory = new OracleCommand();
+                strGetLastInventory.CommandText = @"SELECT W.YM, 
+   W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, 
+   SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
+FROM SE.WMS_STKBAL W
+WHERE comid= 'DCI' and ym =  :YM
+  and wc in ('DCI','SKO')
+GROUP BY W.YM, W.MODEL";
+                
+                strGetLastInventory.Parameters.Add(new OracleParameter(":YM", ym));
+                DataTable dtLastInventory = _ALPHAPD.Query(strGetLastInventory);
+                foreach (DataRow dr in dtLastInventory.Rows)
+                {
+                    MInventory item = new MInventory();
+                    item.model  = dr["MODEL"].ToString();
+                    item.cnt = dr["LBALSTK"].ToString();
+                    rInventory.Add(item);
+                }
+            }
             List<GstSalMdl> rSKU = serv.GetSKU();
             List<PnCompressor> rModel = serv.getModels();
             //List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == "999" && rYM.Contains(x.Ym)).ToList();
@@ -1433,23 +1457,23 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 List<MChartDataSet> rChartStockDataSet = new List<MChartDataSet>();
                 List<string> rChartLabelStock = new List<string>();
                 List<MChartModelWithStock> rModelWithStock = (from s in rInventory
-                                     join sku in rSKUData
-                                     on s.model.Trim() equals sku.modelName.Trim() into aaa
-                                     from bbb in aaa.DefaultIfEmpty()
-                                     select new MChartModelWithStock()
-                                     {
-                                         modelName = s.model,
-                                         sku = bbb != null ? bbb.sku : "",
-                                         sum = Convert.ToInt32(s.lbalstk)
-                                     }).Where(x => x.sku != "" && oProdType.Contains(serv.getModelGroup(x.modelName))).GroupBy(x => new
-                                     {
-                                         x.sku,
-                                     }).Select(g => new MChartModelWithStock()
-                                     {
-                                         sku = g.Key.sku,
-                                         sum = g.Sum(s => s.sum)
-                                     }).OrderBy(x=>x.sku).ToList();
-                rChartStock.label = rModelWithStock.OrderBy(x=>x.sku).Select(x => x.sku).ToList();
+                                                              join sku in rSKUData
+                                                              on s.model.Trim() equals sku.modelName.Trim() into aaa
+                                                              from bbb in aaa.DefaultIfEmpty()
+                                                              select new MChartModelWithStock()
+                                                              {
+                                                                  modelName = s.model,
+                                                                  sku = bbb != null ? bbb.sku : "",
+                                                                  sum = Convert.ToInt32(s.lbalstk)
+                                                              }).Where(x => x.sku != "" && oProdType.Contains(serv.getModelGroup(x.modelName))).GroupBy(x => new
+                                                              {
+                                                                  x.sku,
+                                                              }).Select(g => new MChartModelWithStock()
+                                                              {
+                                                                  sku = g.Key.sku,
+                                                                  sum = g.Sum(s => s.sum)
+                                                              }).OrderBy(x => x.sku).ToList();
+                rChartStock.label = rModelWithStock.OrderBy(x => x.sku).Select(x => x.sku).ToList();
                 MChartDataSet stockDataSet = new MChartDataSet();
                 stockDataSet.label = "Stock";
                 foreach (MChartModelWithStock oStock in rModelWithStock)

@@ -52,6 +52,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public double d29 { get; set; }
         public double d30 { get; set; }
         public double d31 { get; set; }
+        public List<Total> listTotal { get; set; } = new List<Total>();
         public bool warning { get; set; } = false; // สำหรับหน้า Warning 1 = Inventory balance ติดลบ 
         public List<MData> listInventoryPlanning { get; set; }
         public double totalInventoryPlanning { get; set; } = 0;
@@ -69,7 +70,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public double LastInventory { get; set; } = 0;
         public List<InventoryBalance> InventoryBalance { get; set; } = new List<InventoryBalance>();
         public List<InventoryBalancePltype> InventoryBalancePltype { get; set; } = new List<InventoryBalancePltype>();
-  
+
         public List<MData> listSaleForeCaseAllCustomer { get; set; }
         public List<MDelivery> listDelivery { get; set; } = new List<MDelivery>();
         public List<MData> listInventoryPlanningMain { get; set; } = new List<MData>();
@@ -105,5 +106,10 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
     {
         public string date { set; get; }
         public double value { get; set; }
+    }
+    public class Total
+    {
+        public string key { get; set; }
+        public double total { get; set; } = 0;
     }
 }
