@@ -24,6 +24,18 @@
                 return 0;
             }
         }
+
+        public int ConvStrToInt(string val)
+        {
+            try
+            {
+                return val != "" ? Convert.ToInt32(val) : 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
         public int ConvDecToInt(decimal? val)
         {
             try

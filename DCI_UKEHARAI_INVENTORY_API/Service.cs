@@ -137,19 +137,6 @@ namespace DCI_UKEHARAI_INVENTORY_API
             //---------------------------------  ADJ MAIN RESULT L6 ---------------------------------------//
             //---------------------------------------------------------------------------------------------//
             SqlCommand sqlMainL6 = new SqlCommand();
-            //sqlMainL6.CommandText = @"SELECT shiftDate, Model_No, SUM(cnt) cnt FROM(
-            //                                 SELECT  COUNT(DISTINCT PartSerialNo) cnt, RIGHT(LEFT(PartSerialNo,4),3) AS [Model_No], 
-            //                                   case when DATEPART(HOUR, insertdate) >= 8 and DATEPART(HOUR, insertdate) < 20 then format(insertdate,'yyyy-MM-dd', 'en-US') 
-            //                                    when DATEPART(HOUR, insertdate) < 8 then format(DATEADD(day,-1,insertdate),'yyyy-MM-dd','en-US') 
-            //                                    else format(insertdate,'yyyy-MM-dd','en-US') end shiftDate
-            //                                 FROM ElectricalConduction
-            //                                 WHERE IntegratedJudgementResult='OK' AND CheckGlassTerminal='OK' AND (insertdate >= @StartDate AND insertdate <= @EndDate) 
-            //                                 GROUP BY RIGHT(LEFT(PartSerialNo,4),3), 
-            //                                    case when DATEPART(HOUR, insertdate) >= 8 and DATEPART(HOUR, insertdate) < 20 then format(insertdate,'yyyy-MM-dd', 'en-US') 
-            //                                      when DATEPART(HOUR, insertdate) < 8 then format(DATEADD(day,-1,insertdate),'yyyy-MM-dd','en-US') 
-            //                                      else format(insertdate,'yyyy-MM-dd','en-US') end
-            //                                ) as t
-            //                                GROUP BY shiftDate, Model_No ";
             sqlMainL6.CommandText = @"	SELECT  COUNT(DISTINCT PartSerialNo) cnt, RIGHT(LEFT(PartSerialNo,4),3) AS [Model_No], 
                                                case when DATEPART(HOUR, insertdate) >= 8 and DATEPART(HOUR, insertdate) < 20 then format(insertdate,'yyyy-MM-dd', 'en-US') 
                                                 when DATEPART(HOUR, insertdate) < 8 then format(DATEADD(day,-1,insertdate),'yyyy-MM-dd','en-US') 

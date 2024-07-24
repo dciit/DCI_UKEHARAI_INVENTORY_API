@@ -384,7 +384,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Controllers
             oracleCommand.CommandText = $@"SELECT TO_CHAR(W.ASTDATE,'YYYY-MM-DD') AS ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE, SUM(W.ASTQTY) ASTQTY 
 FROM SE.WMS_ASSORT W
 WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' 
- AND TO_CHAR(astdate,'YYYY-MM-DD') BETWEEN '{year}-{month}-01' AND '{year}-{month}-{dayOfMonth}' 
+ AND TO_CHAR(astdate -8/24,'YYYY-MM-DD') BETWEEN '{year}-{month}-01' AND '{year}-{month}-{dayOfMonth}' 
 GROUP BY W.ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE";
             DataTable dt = _ALPHAPD.Query(oracleCommand);
             foreach (DataRow dr in dt.Rows)
@@ -1452,7 +1452,8 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             List<WmsStkBal> rInventory = serv.MWSGetInventory(yyyy, m);
             List<GstSalMdl> rSKUData = serv.GetSKU();
             MSaleVersion oSaleVersion = serv.getSaleVersion(yyyy.ToString());
-            List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == oSaleVersion.lrev.ToString() && x.Rev == oSaleVersion.rev.ToString() && x.Ym == ym).ToList();
+            List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.FromSqlRaw($@"SELECT  * FROM [dbSCM].[dbo].[AL_SaleForecaseMonth] WHERE YM = '{ym}'  AND LREV = '{oSaleVersion.lrev}' AND REV = '{oSaleVersion.rev}' AND  ISNUMERIC(CUSTOMER) = 0 AND CUSTOMER != ''").ToList();
+            //List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == oSaleVersion.lrev.ToString() && x.Rev == oSaleVersion.rev.ToString() && x.Ym == ym).ToList();
             List<AlGsdCurpln> rPlan = _DBSCM.AlGsdCurplns.Where(x => x.Prdym == ym).ToList();
             foreach (List<string> oProdType in rProdType)
             {
@@ -1469,7 +1470,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                                                               {
                                                                   modelName = sku.modelName,
                                                                   sku = sku.sku,
-                                                                  sum = oInv != null ? Convert.ToInt32(oInv.lbalstk) : 0,
+                                                                  sum = oInv != null ? Convert.ToInt32(oInv.balstk) : 0,
                                                               }).Where(x => x.sku != "" && oProdType.Contains(serv.getModelGroup(x.modelName))).GroupBy(x => new
                                                               {
                                                                   x.sku,
@@ -1540,7 +1541,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                                                                 sum = g.Sum(s => s.sum)
                                                             }).OrderBy(x => x.customer).ToList();
                 List<MChartDataSet> rChartDataSet = new List<MChartDataSet>();
-                List<string> rCustomer = rModelWithSale.Select(x => x.customer).Distinct().OrderBy(x => x).ToList();
+                List<string> rCustomer = rModelWithSale.Where(x => x.customer != "").Select(x => x.customer).Distinct().OrderBy(x => x).ToList();
                 foreach (string sku in rSKU)
                 {
 
@@ -1637,6 +1638,72 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
 
             }
             return Ok(rData);
+        }
+
+
+
+        [HttpPost]
+        [Route("/wms/mdw12")]
+        public IActionResult GetModelDetailMDW12([FromBody] ParamMDW12 param)
+        {
+            List<PropsMDW12> Models = new List<PropsMDW12>();
+            try
+            {
+                string modelCode = param.modelCode != null ? param.modelCode : "";
+                string modelName = param.modelName != null ? param.modelName : "";
+                string modelGroup = param.modelGroup != null ? param.modelGroup : "";
+                string pdType = param.prdType != null ? param.prdType : "";
+                string condModelCode = modelCode != "" ? $" AND POSTCODE = '{(modelCode.Length != 4 ? helper.ConvStrToInt(modelCode).ToString("D4") : "0000")}'" : "";
+                string condModelName = modelName != "" ? $" AND MODEL = '{modelName}'" : "";
+                string condModelGroup = modelGroup != "" ? $" AND MGROUP LIKE '%{modelGroup}%'" : "";
+                string condPrdType = pdType != "" ? $" AND PRDTYPE = '{pdType}'" : "";
+                OracleCommand str = new OracleCommand();
+                str.CommandText = $@"SELECT  M.POSTCODE ModelCode,M.MODEL ModelName, M.PRDTYPE, M.MGROUP, M.MDBAR, M.MDPRINT, M.Line , CASE WHEN M.PRDTYPE = 'COM' THEN M.Line ELSE 'O' END LineNo FROM SE.MT003 M WHERE M.LREV = '999' {condModelName} {condModelCode} {condModelGroup} {condPrdType}";
+                DataTable dt = _ALPHAPD.Query(str);
+                foreach (DataRow dr in dt.Rows)
+                {
+                    PropsMDW12 oModel = new PropsMDW12();
+                    oModel.modelCode = dr["ModelCode"].ToString();
+                    oModel.modelName = dr["ModelName"].ToString();
+                    oModel.prdType = dr["PRDTYPE"].ToString();
+                    oModel.modelGroup = dr["MGROUP"].ToString();
+                    oModel.modelBarcode = dr["MDBAR"].ToString();
+                    oModel.modelPrint = dr["MDPRINT"].ToString();
+                    oModel.line = dr["Line"].ToString();
+                    Models.Add(oModel);
+                }
+            }
+            catch
+            {
+                Models = new List<PropsMDW12>();
+            }
+            return Ok(Models);
+        }
+
+        [HttpPost]
+        [Route("/wms/mdw27")]
+        public IActionResult GetPltypeType([FromBody] ParamMDW27 param)
+        {
+            List<PropsPltypeOfModel> res = new List<PropsPltypeOfModel>();
+            string modelCode = param.modelCode != null ? param.modelCode : "";
+            string modelName = param.modelName != null ? param.modelName : "";
+            string pdType = param.plType != null ? param.plType : "";
+            string condModelCode = modelCode != "" ? $" AND SEBANGO = '{helper.ConvStrToInt(modelCode).ToString("D4")}'" : "";
+            string condModelName = modelName != "" ? $" AND MODEL = '{modelName}'" : "";
+            string condPrdType = pdType != "" ? $" AND PLTYPE = '{pdType}'" : "";
+            SqlCommand str = new SqlCommand();
+            str.CommandText = $@"SELECT [SEBANGO] AS MODELCODE,[MODEL] AS MODELNAME ,[MODELGROUP]  ,[PLTYPE]   ,[SEBANGO]  FROM [dbSCM].[dbo].[WMS_MDW27_MODEL_MASTER]  WHERE ACTIVE = 'ACTIVE' AND LREV = '999' {condModelCode} {condModelName} {condPrdType}";
+            DataTable dt = _SQLSCM.Query(str);
+            foreach (DataRow dr in dt.Rows)
+            {
+                PropsPltypeOfModel oModel = new PropsPltypeOfModel();
+                oModel.modelCode = dr["MODELCODE"].ToString();
+                oModel.modelName = dr["MODELNAME"].ToString();
+                oModel.plType = dr["PLTYPE"].ToString();
+                oModel.modelGroup = dr["MODELGROUP"].ToString();
+                res.Add(oModel);
+            }
+            return Ok(res);
         }
     }
 }
