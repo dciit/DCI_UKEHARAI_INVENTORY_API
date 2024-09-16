@@ -29,6 +29,8 @@ public partial class WmsMdw27ModelMaster
 
     public string Diameter { get; set; } = null!;
 
+    public string? Customer { get; set; }
+
     public string Active { get; set; } = null!;
 
     public string? CreateBy { get; set; }

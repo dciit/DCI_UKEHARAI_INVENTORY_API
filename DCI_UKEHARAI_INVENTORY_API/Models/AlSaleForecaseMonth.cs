@@ -83,9 +83,9 @@ public partial class AlSaleForecaseMonth
 
     public int? D31 { get; set; }
 
-    public string? Rev { get; set; }
+    public string Rev { get; set; } = null!;
 
-    public string? Lrev { get; set; }
+    public string Lrev { get; set; } = null!;
 
     public string? CreateBy { get; set; }
 

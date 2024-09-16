@@ -4,6 +4,7 @@ using DCI_UKEHARAI_INVENTORY_API.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using Oracle.ManagedDataAccess.Client;
 using System.Collections.Generic;
 using System.Data;
@@ -407,9 +408,7 @@ GROUP BY W.ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE";
             }
 
             List<MActual> response = new List<MActual>();
-            //List<MInbound> listInbound = new List<MInbound>();
             List<MWms_MstPkm> listPltype = new List<MWms_MstPkm>();
-            //set inventory data
             List<MInventory> allInventory = new List<MInventory>();
             OracleCommand strGetPltypeOfModel = new OracleCommand();
             strGetPltypeOfModel.CommandText = @"select model, pltype, strloc
@@ -529,25 +528,22 @@ order by model";
             // (##) GET OSW03 DELIVERY 
             List<MOSW03Delivery> mOSW03Deliveries = new List<MOSW03Delivery>();
             OracleCommand strGetDelivery = new OracleCommand();
-            strGetDelivery.CommandText = @"SELECT TO_CHAR(W.CFDATE, 'yyyyMMdd') CFDATE,
-   TO_CHAR(W.IFDATE, 'yyyyMMdd') IFDATE,  
-   W.MODEL, W.PLTYPE,   
-   SUM(W.QTY) QTY, 
-   SUM(W.ALQTY) ALQTY,   
-   SUM(W.PICQTY) PICQTY   
-FROM SE.WMS_DELCTN W
-WHERE W.CFBIT = 'F' AND W.IFBIT = 'F' AND TO_CHAR(W.IFDATE, 'yyyyMMdd') LIKE :YM 
-GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
-   TO_CHAR(W.IFDATE, 'yyyyMMdd') , W.MODEL, W.PLTYPE";
-            strGetDelivery.Parameters.Add(new OracleParameter(":YM", (year + "" + month + "%")));
+            strGetDelivery.CommandText = $@"SELECT TO_CHAR(H.DELDATE, 'yyyyMMdd') DELDATE,  
+                                               W.MODEL, W.PLTYPE,   
+                                               SUM(W.QTY) QTY, 
+                                               SUM(W.ALQTY) ALQTY,   
+                                               SUM(W.PICQTY) PICQTY   
+                                            FROM SE.WMS_DELCTN W
+                                            LEFT JOIN SE.WMS_DELCTL H ON H.COMID='DCI' AND H.IVNO = W.IVNO AND H.DONO = W.DONO 
+                                            WHERE W.CFBIT = 'F' AND W.IFBIT = 'F' AND TO_CHAR(H.DELDATE, 'yyyyMMdd') LIKE '{year}{month}%'
+                                            GROUP BY TO_CHAR(H.DELDATE, 'yyyyMMdd') , W.MODEL, W.PLTYPE   ";
             DataTable dtDelivery = _ALPHAPD.Query(strGetDelivery);
             foreach (DataRow dr in dtDelivery.Rows)
             {
                 MOSW03Delivery oSW03Delivery = new MOSW03Delivery();
                 oSW03Delivery.model = dr["MODEL"].ToString().Trim();
                 oSW03Delivery.pltype = dr["PLTYPE"].ToString().Trim();
-                oSW03Delivery.cfdate = dr["CFDATE"].ToString();
-                oSW03Delivery.ifdate = dr["IFDATE"].ToString();
+                oSW03Delivery.deldate = dr["DELDATE"].ToString();
                 oSW03Delivery.qty = Convert.ToInt32(dr["QTY"].ToString());
                 oSW03Delivery.alqty = Convert.ToInt32(dr["ALQTY"].ToString());
                 oSW03Delivery.picqty = Convert.ToInt32(dr["PICQTY"].ToString());
@@ -604,6 +600,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 // ถ้าเจอ lrev = 999 ใช้งานได้เลย เนื่องจาก แจกจ่าย แล้ว
                 if (lrev != 999)  // ค้นหา (rev - 1), lrev = (rev - 1) เพื่อหาข้อมูลที่ Distribution ก่อนหน้านี้
                 {
+                    //rev = lrev - 1;
                     rev = rev - 1;
                 }
             }
@@ -645,6 +642,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
 
             //List<EkbWipPartStock> rStockCurrent = _DBSCM.EkbWipPartStocks.Where(x => x.Ym == ym && x.Ptype == "MAIN").ToList();
             List<ModelUkeharai> rUke = new List<ModelUkeharai>();
+            List<DictMstr> ListPalletOfModel = _DBSCM.DictMstrs.Where(x => x.DictSystem == "SALEFC" && x.DictType == "CUST_PL" && x.Ref1 != null && x.DictStatus == "ACTIVE").ToList();
 
             if (ym != "")
             {
@@ -663,7 +661,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     oResponse.model = oModel;
                     oResponse.sebango = helper.SetDigit(sebango, 4);
                     oResponse.modelCode = helper.SetDigit(sebango, 4);
-                    List<MMainResult> rMainResult = mMainResult.Where(x => x.Model_No == sebango.Replace("0", "") || x.ModelName == oModel.Trim()).ToList();
+                    List<MMainResult> rMainResult = mMainResult.Where(x => x.Model_No == helper.ConvStrToInt(sebango).ToString("D4") || x.ModelName == oModel.Trim()).ToList();
 
                     // (1) GET,SET SALE FORECASE
                     //List<AlSaleForecaseMonth> rSaleForecase = ListSaleForecast.Where(x => x.ModelName == oModel && x.Ym == ym && x.Lrev == "999").ToList();
@@ -744,62 +742,66 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     }).ToList();
 
                     // (##) CAL DELIVERY OF DAY
-                    foreach (var item in GroupPltype)
+                    var PalletsOfModel = ListPalletOfModel.Where(x => x.RefCode == oModel).GroupBy(x => new
                     {
-                        string pltype = item.pltype;
+                        model = x.RefCode,
+                        pallet = x.Ref1
+                    }).Select(o => new {o.Key.pallet }).ToList();
+                    foreach (var oPallet in PalletsOfModel)
+                    {
+                        string pallet = oPallet.pallet;
+                        //string customer = oPallet.customer;
                         DateTime dateDelivery = dtFilter;
                         MDelivery oDelivery = new MDelivery();
-                        oDelivery.pltype = pltype;
+                        oDelivery.pltype = pallet;
+                        oDelivery.customer = "";
+                        bool isValDelivery = false;
                         while (dateDelivery.Date < new DateTime(dtFilter.Year, dtFilter.Month, DateTime.DaysInMonth(dtFilter.Year, dtFilter.Month)).AddDays(1))
                         {
                             string strDtDelivery = dateDelivery.ToString("yyyyMMdd");
                             MData iDelivery = new MData();
                             iDelivery.date = strDtDelivery;
-                            List<MOSW03Delivery> itemDelivery = mOSW03Deliveries.Where(x => x.model == oModel && x.pltype == pltype && x.ifdate == strDtDelivery).ToList();
+                            List<MOSW03Delivery> itemDelivery = mOSW03Deliveries.Where(x => x.model == oModel && x.pltype == pallet && x.deldate == strDtDelivery).ToList();
                             if (itemDelivery.Count > 0)
                             {
                                 iDelivery.value = itemDelivery.FirstOrDefault()!.qty;
+                                isValDelivery = true;
                             }
+                            //iDelivery.customer = customer;
                             oDelivery.data.Add(iDelivery);
                             dateDelivery = dateDelivery.AddDays(1);
                         }
-                        rDelivery.Add(oDelivery);
+                        if (isValDelivery == true)
+                        {
+                            rDelivery.Add(oDelivery);
+                        }
                     }
-
-
-                    // (##) DECLARE VARAIBLE OF MODEL
                     List<MData> rInventoryPlanning = new List<MData>();
                     List<MData> rSaleAllCusOfModel = new List<MData>();
                     List<MInventory> rInventoryPlanningMainOrFinal = new List<MInventory>();
-
-                    // (##) CAL INV.BAL
-                    // (##) CAL INV BAL BY PLTYPE
-
                     List<InventoryBalance> rInventoryBalance = new List<InventoryBalance>();
                     if (ym == DateTime.Now.ToString("yyyyMM"))
                     {
                         double TotalInventory = allInventory.Where(x => x.model == oModel.Trim()).Sum(x => Convert.ToInt32(x.cnt));
-                        //double TotalInventory = oLastInventory.FirstOrDefault(x => x.model.Trim() == oModel) != null ? double.Parse(oLastInventory.FirstOrDefault(x => x.model.Trim() == oModel).balstk) : 0;
-
-                        /* A003 */
-                        foreach (WmsMdw27ModelMaster oMDW27 in rMDW27.Where(x => x.Model == oModel.Trim()).ToList())  /* [E]A003 */
+                        var ListPlOfModel = ListPalletOfModel.Where(x => x.RefCode == oModel.Trim()).GroupBy(x => x.Ref1).Select(x => x.Key);
+                        foreach (string pallet in ListPlOfModel)  /* [E]A003 */
                         {
                             double TotalInventoryOfPltype = TotalInventory;
                             DateTime dtLoopPltype = DateTime.Now;
-                            double nStartInvBalancePltype = Convert.ToDouble(GroupPltype.Where(x => x.pltype == oMDW27.Pltype).Sum(y => y.cnt));
+                            double nStartInvBalancePltype = Convert.ToDouble(GroupPltype.Where(x => x.pltype == pallet).Sum(y => y.cnt));
                             InventoryBalancePltype oInventoryBalancePltype = new InventoryBalancePltype();
-                            oInventoryBalancePltype.pltype = oMDW27.Pltype;
+                            oInventoryBalancePltype.pltype = pallet;
                             oInventoryBalancePltype.modelName = oModel.Trim();
                             List<InventoryBalancePltypeData> rInventoryBalancePltypeData = new List<InventoryBalancePltypeData>();
                             while (dtLoopPltype.Date < new DateTime(dtNow.Year, dtNow.Month, DateTime.DaysInMonth(dtNow.Year, dtNow.Month)).AddDays(1))
                             {
-                                List<MOSW03Delivery> itemDelivery = mOSW03Deliveries.Where(x => x.model == oModel && x.pltype == oMDW27.Pltype && x.ifdate == dtLoopPltype.ToString("yyyyMMdd")).ToList();
+                                List<MOSW03Delivery> itemDelivery = mOSW03Deliveries.Where(x => x.model == oModel && x.pltype == pallet && x.deldate == dtLoopPltype.ToString("yyyyMMdd")).ToList();
                                 int nDeliveryOfDay = 0;
                                 if (itemDelivery.Count > 0)
                                 {
                                     nDeliveryOfDay = itemDelivery.Sum(x => x.qty);
                                 }
-                                double oSaleOfPltypePerDay = rSaleForecase.Where(x => x.Pltype == oMDW27.Pltype).Sum(y => Convert.ToDouble(y.GetType().GetProperty("D" + dtLoopPltype.ToString("dd")).GetValue(y).ToString()));
+                                double oSaleOfPltypePerDay = rSaleForecase.Where(x => x.Pltype == pallet).Sum(y => Convert.ToDouble(y.GetType().GetProperty("D" + dtLoopPltype.ToString("dd")).GetValue(y).ToString()));
                                 nStartInvBalancePltype = (nStartInvBalancePltype - oSaleOfPltypePerDay) + nDeliveryOfDay;
                                 rInventoryBalancePltypeData.Add(new InventoryBalancePltypeData()
                                 {
@@ -816,7 +818,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                         {
                             InventoryBalance iInventoryBalance = new InventoryBalance();
                             double iSaleOfDay = rSaleForecase.Sum(x => int.Parse(x.GetType().GetProperty("D" + dtCalInvBal.ToString("dd")).GetValue(x).ToString()));
-                            List<MOSW03Delivery> itemDelivery = mOSW03Deliveries.Where(x => x.model == oModel && x.ifdate == dtCalInvBal.ToString("yyyyMMdd")).ToList();
+                            List<MOSW03Delivery> itemDelivery = mOSW03Deliveries.Where(x => x.model == oModel && x.deldate == dtCalInvBal.ToString("yyyyMMdd")).ToList();
                             int nDeliveryOfDay = 0;
                             if (itemDelivery.Count > 0)
                             {
@@ -902,10 +904,6 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                         });
                         if (dtStartInvPln.ToString("yyyyMMdd") == dtEndInvPln.ToString("yyyyMMdd"))
                         {
-                            //if (oModel == "DFB11A2VB")
-                            //{
-                            //    Console.WriteLine("asdad");
-                            //}
                             nStockCurrent = nInventory + (modelGroup != "ODM" ? rMainResult.Where(o => o.shiftDate == dtStartInvPln.ToString("yyyy-MM-dd")).Sum(x => x.cnt) : rResultFinal.Where(x => x.model == oModel && x.prdymd == dtStartInvPln.ToString("yyyyMMdd")).Sum(x => x.qty));
                         }
                         /* A002[E] */
@@ -1044,6 +1042,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
         {
             // (##) สร้างตัวแปร
             // (##) เก็บข้อมูลการขาย
+            DateTime dtNow = DateTime.Now;
             List<MWarning> res = new List<MWarning>();
             DateTime dtStartWarning = DateTime.Now;
             DateTime dtEndWarning = dtStartWarning.AddDays(10);
@@ -1078,7 +1077,33 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
             List<MInventory> rInventory = new List<MInventory>();
             //if (inventorytype == "freeze")
             //{
-            SqlCommand strGetUkeAlphaInv = new SqlCommand();
+            List<MOSW03Delivery> mOSW03Deliveries = new List<MOSW03Delivery>();
+            OracleCommand strGetDelivery = new OracleCommand();
+            strGetDelivery.CommandText = $@"SELECT TO_CHAR(H.DELDATE, 'yyyyMMdd') DELDATE,  
+                                               W.MODEL, W.PLTYPE,   
+                                               SUM(W.QTY) QTY, 
+                                               SUM(W.ALQTY) ALQTY,   
+                                               SUM(W.PICQTY) PICQTY   
+                                            FROM SE.WMS_DELCTN W
+                                            LEFT JOIN SE.WMS_DELCTL H ON H.COMID='DCI' AND H.IVNO = W.IVNO AND H.DONO = W.DONO 
+                                            WHERE W.CFBIT = 'F' AND W.IFBIT = 'F' AND TO_CHAR(H.DELDATE, 'yyyyMMdd') LIKE '{dtNow.Year}{dtNow.ToString("MM")}%'
+                                            GROUP BY TO_CHAR(H.DELDATE, 'yyyyMMdd') , W.MODEL, W.PLTYPE   ";
+            DataTable dtDelivery = _ALPHAPD.Query(strGetDelivery);
+            foreach (DataRow dr in dtDelivery.Rows)
+            {
+                MOSW03Delivery oSW03Delivery = new MOSW03Delivery();
+                oSW03Delivery.model = dr["MODEL"].ToString().Trim();
+                oSW03Delivery.pltype = dr["PLTYPE"].ToString().Trim();
+                //oSW03Delivery.cfdate = dr["CFDATE"].ToString();
+                //oSW03Delivery.ifdate = dr["IFDATE"].ToString();
+                oSW03Delivery.deldate = dr["DELDATE"].ToString();
+                oSW03Delivery.qty = Convert.ToInt32(dr["QTY"].ToString());
+                oSW03Delivery.alqty = Convert.ToInt32(dr["ALQTY"].ToString());
+                oSW03Delivery.picqty = Convert.ToInt32(dr["PICQTY"].ToString());
+                mOSW03Deliveries.Add(oSW03Delivery);
+            }
+
+           SqlCommand strGetUkeAlphaInv = new SqlCommand();
             strGetUkeAlphaInv.CommandText = @"SELECT * FROM UKE_ALPHA_INVENTORY WHERE YMD = @YMD";
             strGetUkeAlphaInv.Parameters.Add(new SqlParameter("@YMD", ymd));
             DataTable dtInv = _SQLSCM.Query(strGetUkeAlphaInv);
@@ -1089,32 +1114,8 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 item.model = dr["MODEL"].ToString();
                 rInventory.Add(item);
             }
-            //}
-            //else // inventory = real-time
-            //{
-            //            OracleCommand strGetLastInventory = new OracleCommand();
-            //            strGetLastInventory.CommandText = @"SELECT W.YM, 
-            //   W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, 
-            //   SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
-            //FROM SE.WMS_STKBAL W
-            //WHERE comid= 'DCI' and ym =  :YM
-            //  and wc in ('DCI','SKO')
-            //GROUP BY W.YM, W.MODEL";
-
-            //            strGetLastInventory.Parameters.Add(new OracleParameter(":YM", ym));
-            //            DataTable dtLastInventory = _ALPHAPD.Query(strGetLastInventory);
-            //            foreach (DataRow dr in dtLastInventory.Rows)
-            //            {
-            //                MInventory item = new MInventory();
-            //                item.model = dr["MODEL"].ToString();
-            //                item.cnt = dr["LBALSTK"].ToString();
-            //                rInventory.Add(item);
-            //            }
-            //}
             List<GstSalMdl> rSKU = serv.GetSKU();
             List<PnCompressor> rModel = serv.getModels();
-            //List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Lrev == "999" && rYM.Contains(x.Ym)).ToList();
-
             /* A001 */
             int rev = 0;
             int lrev = 0;
@@ -1128,17 +1129,20 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 lrev = Convert.ToInt32(dtGetVersion.Rows[0]["LREV"].ToString());
                 if (lrev != 999)
                 {
+                    //rev = lrev - 1;
                     rev = rev - 1;
                 }
             }
             List<AlSaleForecaseMonth> rSaleForecase = _DBSCM.AlSaleForecaseMonths.Where(x => x.Rev == rev.ToString() && x.Lrev == lrev.ToString() && rYM.Contains(x.Ym)).ToList();
             /* A001 */
 
-            List<PnCompressor> rModelDetail = _DBSCM.PnCompressors.Where(x => x.Status == "ACTIVE").ToList();
+            List<WmsMdw27ModelMaster> rModelDetail = _DBSCM.WmsMdw27ModelMasters.Where(x => x.Active == "ACTIVE").ToList();
             // (##)
+            List<string> Models = rModelDetail.Select(x => x.Model).Distinct().ToList();
 
-            foreach (string oModel in rModel.Select(x => x.Model).Distinct().ToList())
+            foreach (string oModel in Models)
             {
+               
                 bool warning = false;
                 List<string> rCustomer = new List<string>();
                 List<string> rPltype = new List<string>();
@@ -1146,7 +1150,7 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 string model = oModel.Trim();
                 var sku = rSKU.FirstOrDefault(x => x.modelName == model);
                 var oModelDetail = rModelDetail.FirstOrDefault(x => x.Model == model);
-                string sebango = oModelDetail != null ? oModelDetail.ModelCode : "";
+                string sebango = oModelDetail != null ? oModelDetail.Sebango : "";
                 item.model = model;
                 item.sbu = sku != null ? sku.sku : "";
                 item.sebango = sebango;
@@ -1154,7 +1158,12 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 string ymdLoop = dtLoop.ToString("yyyyMMdd");
                 List<MInventory> oInventory = rInventory.Where(x => x.model.Trim() == model).ToList(); // (##) find Inventory of day by field model, date
                 double nInventory = oInventory.Count > 0 ? oInventory.Sum(x => double.Parse(x.cnt)) : 0;
-
+                MOSW03Delivery oItemDelivery = mOSW03Deliveries.FirstOrDefault(x => x.model == model && x.deldate == dtNow.ToString("yyyyMMdd"));
+                if (oItemDelivery != null)
+                {
+                    nInventory += oItemDelivery.qty;
+                }
+              
                 // ---------- CHECK HAVE INBOUND  ------------//
                 MInbound ItemInBound = rInbound.FirstOrDefault(x => x.model == model);
                 if (ItemInBound != null)
@@ -1166,7 +1175,6 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
 
                 item.inventory = nInventory;
                 List<MPltypeOfCustomer> rPltypeOfCustomer = new List<MPltypeOfCustomer>();
-
                 while (dtLoop < dtEndWarning)
                 {
                     MData mSale = new MData(); // Sale of day
@@ -1201,7 +1209,15 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                     }
                     mSale.date = dtLoop.ToString("yyyyMMdd");
                     mSale.value = nSumSaleOfCustomerPerDay;
+                    //MOSW03Delivery oItemDelivery = mOSW03Deliveries.FirstOrDefault(x => x.model == item.model && x.ifdate == dtNow.ToString("yyyyMMdd"));
+                    //if (oItemDelivery == null)
+                    //{
                     nInventory = nInventory - nSumSaleOfCustomerPerDay;
+                    //}
+                    //else
+                    //{
+                    //    Console.WriteLine("X");
+                    //}
                     if (nInventory < 0)
                     {
                         warning = true;
@@ -1704,6 +1720,53 @@ GROUP BY TO_CHAR(W.CFDATE, 'yyyyMMdd') ,
                 res.Add(oModel);
             }
             return Ok(res);
+        }
+
+        [HttpPost]
+        [Route("/GetIotResult")]
+        public IActionResult GetIotResult([FromBody] ParamIotResult param)
+        {
+            List<WmsMdw27ModelMaster> mdw27s = _DBSCM.WmsMdw27ModelMasters.Where(x => x.Active == "ACTIVE").ToList();
+            List<MMainResult> resultMain = new List<MMainResult>();
+            string type = param.type;
+            string year = param.year;
+            string month = param.month;
+            string line = param.line;
+            string serial = "";
+            if (type == "MAIN")
+            {
+                resultMain = new Service(_DBSCM).GetResultMain(year, month);
+                if (line != "%")
+                {
+                    resultMain = resultMain.Where(x => x.LineName == $"90{line}").ToList();
+                }
+
+                foreach (MMainResult oResult in resultMain)
+                {
+                    if (oResult.ModelName == "")
+                    {
+                        WmsMdw27ModelMaster oModel = mdw27s.FirstOrDefault(x => x.Sebango == helper.ConvStrToInt(oResult.Model_No).ToString("D4"))!;
+                        if (oModel != null)
+                        {
+                            oResult.ModelName = oModel.Model;
+                        }
+                    }
+                    else if (oResult.Model_No == null || oResult.Model_No == "")
+                    {
+                        WmsMdw27ModelMaster oModel = mdw27s.FirstOrDefault(x => x.Model == oResult.ModelName)!;
+                        if (oModel != null)
+                        {
+                            oResult.Model_No = oModel.Sebango;
+                        }
+                    }
+                    oResult.Model_No = helper.ConvStrToInt(oResult.Model_No).ToString("D4");
+                }
+            }
+            else
+            {
+                resultMain = new Service(_DBSCM).GetResultMain(year, month);
+            }
+            return Ok(resultMain);
         }
     }
 }

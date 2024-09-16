@@ -22,6 +22,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
         private OraConnectDB _ALPHAPD = new OraConnectDB("ALPHAPD");
         private OraConnectDB _ALPHAPD1 = new OraConnectDB("ALPHA01");
         private OraConnectDB _ALPHAPD2 = new OraConnectDB("ALPHA02");
+        Helper oHelper = new Helper();
         //private readonly DBIOT2 _DBIOT2;
         public Service(DBSCM dBSCM)
         {
@@ -79,7 +80,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
                     Wcno = "902";
                 }
                 itemMain.LineName = Wcno;
-                itemMain.Model_No = ModelCode;
+                itemMain.Model_No = oHelper.ConvStrToInt(ModelCode).ToString("D4");
                 itemMain.ModelName = ModelName;
                 itemMain.shiftDate = dr["ShiftDate"].ToString();
                 itemMain.cnt = int.Parse(dr["cnt"]!.ToString());
@@ -94,19 +95,19 @@ namespace DCI_UKEHARAI_INVENTORY_API
             //-------------------------------  ADJ MAIN RESULT L5 -----------------------------------------//
             //---------------------------------------------------------------------------------------------//
             SqlCommand sqlMain5 = new SqlCommand();
-            sqlMain5.CommandText = @"SELECT LineName, RIGHT(LEFT(SerialNo, 4),3) Model_No, COUNT(DISTINCT SerialNo) cnt,
+            sqlMain5.CommandText = $@"SELECT LineName, RIGHT(LEFT(SerialNo, 4),3) Model_No, COUNT(DISTINCT SerialNo) cnt,
                                                 case when DATEPART(HOUR, StampTime) >= 8 and DATEPART(HOUR, StampTime) < 20 then format(StampTime,'yyyy-MM-dd', 'en-US') 
                                           when DATEPART(HOUR, StampTime) < 8 then format(DATEADD(day,-1,StampTime),'yyyy-MM-dd','en-US') 
                                           else format(StampTime,'yyyy-MM-dd','en-US') end shiftDate
                                         FROM etd_leak_check
-                                        WHERE StampTime >= @StartDate AND StampTime < @EndDate 
+                                        WHERE StampTime >= '{startDate}' AND StampTime < '{endDate}' 
                                             AND LEN(SerialNo) IN ('10', '18') AND LineName IN ('5')
                                         GROUP BY LineName, RIGHT(LEFT(SerialNo, 4),3) , 
                                          case when DATEPART(HOUR, StampTime) >= 8 and DATEPART(HOUR, StampTime) < 20 then format(StampTime,'yyyy-MM-dd', 'en-US') 
                                           when DATEPART(HOUR, StampTime) < 8 then format(DATEADD(day,-1,StampTime),'yyyy-MM-dd','en-US') 
                                           else format(StampTime,'yyyy-MM-dd','en-US') end  ";
-            sqlMain5.Parameters.Add(new SqlParameter("@StartDate", startDate));
-            sqlMain5.Parameters.Add(new SqlParameter("@EndDate", endDate));
+            //sqlMain5.Parameters.Add(new SqlParameter("@StartDate", startDate));
+            //sqlMain5.Parameters.Add(new SqlParameter("@EndDate", endDate));
             DataTable dtMainL5 = DBIOTFAC2.Query(sqlMain5);
             foreach (DataRow dr in dtMainL5.Rows)
             {
@@ -120,7 +121,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
                     Wcno = "905";
                 }
                 itemMain.LineName = Wcno;
-                itemMain.Model_No = ModelCode;
+                itemMain.Model_No = oHelper.ConvStrToInt(ModelCode).ToString("D4");
                 itemMain.ModelName = ModelName;
                 itemMain.shiftDate = dr["ShiftDate"].ToString();
                 itemMain.cnt = int.Parse(dr["cnt"]!.ToString());
@@ -164,7 +165,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
                 //}
                 string Wcno = "906";
                 itemMain.LineName = Wcno;
-                itemMain.Model_No = ModelCode;
+                itemMain.Model_No = oHelper.ConvStrToInt(ModelCode).ToString("D4");
                 itemMain.ModelName = ModelName;
                 itemMain.shiftDate = dr["ShiftDate"].ToString();
                 itemMain.cnt = int.Parse(dr["cnt"]!.ToString());
@@ -208,7 +209,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
                         Wcno = "907";
                     }
                     itemMain.LineName = Wcno;
-                    itemMain.Model_No = ModelCode;
+                    itemMain.Model_No = oHelper.ConvStrToInt(ModelCode).ToString("D4");
                     itemMain.ModelName = ModelName;
                     itemMain.shiftDate = dr["ShiftDate"].ToString();
                     itemMain.cnt = int.Parse(dr["cnt"]!.ToString());
@@ -249,7 +250,7 @@ namespace DCI_UKEHARAI_INVENTORY_API
                     string ModelName = "";
                     string Wcno = "908";
                     itemMain.LineName = Wcno;
-                    itemMain.Model_No = ModelCode;
+                    itemMain.Model_No = oHelper.ConvStrToInt(ModelCode).ToString("D4");
                     itemMain.ModelName = ModelName;
                     itemMain.shiftDate = dr["ShiftDate"].ToString();
                     itemMain.cnt = int.Parse(dr["cnt"]!.ToString());

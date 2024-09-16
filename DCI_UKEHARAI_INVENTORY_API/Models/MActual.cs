@@ -80,7 +80,8 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
 
     public class MDelivery
     {
-        public string pltype { get; set; }
+        public string pltype { get; set; } = "";
+        public string customer { get; set; } = "";
         public List<MData> data { get; set; } = new List<MData>();
     }
     public class InventoryBalancePltype

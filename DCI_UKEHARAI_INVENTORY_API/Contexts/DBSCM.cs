@@ -22,6 +22,8 @@ public partial class DBSCM : DbContext
 
     public virtual DbSet<AlSaleForecaseMonth> AlSaleForecaseMonths { get; set; }
 
+    public virtual DbSet<DictMstr> DictMstrs { get; set; }
+
     public virtual DbSet<EkbWipPartStock> EkbWipPartStocks { get; set; }
 
     public virtual DbSet<PnCompressor> PnCompressors { get; set; }
@@ -209,9 +211,7 @@ public partial class DBSCM : DbContext
         {
             entity.ToTable("AL_SaleForecaseMonth");
 
-            entity.HasIndex(e => new { e.Ym, e.ModelName, e.Lrev }, "IX_AL_SaleForecaseMonth").IsDescending(true, false, false);
-
-            entity.HasIndex(e => new { e.Ym, e.ModelName, e.Pltype, e.Lrev }, "IX_AL_SaleForecaseMonth_1");
+            entity.HasIndex(e => new { e.Ym, e.Lrev }, "IX_AL_SaleForecaseMonth_1").IsDescending();
 
             entity.Property(e => e.Id).HasColumnName("ID");
             entity.Property(e => e.CreateBy).HasMaxLength(50);
@@ -269,6 +269,59 @@ public partial class DBSCM : DbContext
                 .HasColumnName("YM");
         });
 
+        modelBuilder.Entity<DictMstr>(entity =>
+        {
+            entity.HasKey(e => e.DictId);
+
+            entity.ToTable("DictMstr");
+
+            entity.Property(e => e.DictId).HasColumnName("DICT_ID");
+            entity.Property(e => e.Code)
+                .HasMaxLength(50)
+                .HasColumnName("CODE");
+            entity.Property(e => e.CreateDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("CREATE_DATE");
+            entity.Property(e => e.Description)
+                .HasMaxLength(250)
+                .HasColumnName("DESCRIPTION");
+            entity.Property(e => e.DictStatus)
+                .HasMaxLength(20)
+                .HasColumnName("DICT_STATUS");
+            entity.Property(e => e.DictSystem)
+                .HasMaxLength(20)
+                .HasColumnName("DICT_SYSTEM");
+            entity.Property(e => e.DictType)
+                .HasMaxLength(50)
+                .HasColumnName("DICT_TYPE");
+            entity.Property(e => e.Note)
+                .HasMaxLength(50)
+                .HasColumnName("NOTE");
+            entity.Property(e => e.Ref1)
+                .HasMaxLength(20)
+                .HasColumnName("REF1");
+            entity.Property(e => e.Ref2)
+                .HasMaxLength(20)
+                .HasColumnName("REF2");
+            entity.Property(e => e.Ref3)
+                .HasMaxLength(20)
+                .HasColumnName("REF3");
+            entity.Property(e => e.Ref4)
+                .HasMaxLength(20)
+                .HasColumnName("REF4");
+            entity.Property(e => e.RefCode)
+                .HasMaxLength(200)
+                .HasColumnName("REF_CODE");
+            entity.Property(e => e.UpdateBy)
+                .HasMaxLength(20)
+                .HasColumnName("UPDATE_BY");
+            entity.Property(e => e.UpdateDate)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime")
+                .HasColumnName("UPDATE_DATE");
+        });
+
         modelBuilder.Entity<EkbWipPartStock>(entity =>
         {
             entity.HasKey(e => new { e.Ym, e.Wcno, e.Partno, e.Cm }).HasName("PK_EKB_LINE_STOCK_MONIOTR");
@@ -296,7 +349,6 @@ public partial class DBSCM : DbContext
             entity.Property(e => e.Lbal)
                 .HasColumnType("decimal(18, 4)")
                 .HasColumnName("LBAL");
-            entity.Property(e => e.PartDesc).HasMaxLength(250);
             entity.Property(e => e.Ptype).HasMaxLength(15);
             entity.Property(e => e.Recqty)
                 .HasColumnType("decimal(18, 4)")
@@ -576,6 +628,9 @@ public partial class DBSCM : DbContext
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
                 .HasColumnName("CREATE_DATE");
+            entity.Property(e => e.Customer)
+                .HasMaxLength(50)
+                .HasColumnName("CUSTOMER");
             entity.Property(e => e.UpdateDate)
                 .HasDefaultValueSql("(getdate())")
                 .HasColumnType("datetime")
