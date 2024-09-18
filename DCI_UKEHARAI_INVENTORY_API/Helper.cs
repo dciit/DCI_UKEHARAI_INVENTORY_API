@@ -24,7 +24,17 @@
                 return 0;
             }
         }
-
+        public double ConvStrToDB(string val)
+        {
+            try
+            {
+                return val != "" ? Convert.ToDouble(val) : 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
         public int ConvStrToInt(string val)
         {
             try

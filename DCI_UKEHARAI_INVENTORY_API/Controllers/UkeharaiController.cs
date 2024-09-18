@@ -694,7 +694,6 @@ order by model";
                         oResponse.totalInventoryPlanningMain = 0;
                     }
 
-                    // (2) GET INVENTORY
                     List<MInventory> rInventory = allInventory.Where(x => x.model.Trim() == oModel.Trim()).ToList();
                     if (rInventory.Count > 0)
                     {
@@ -746,7 +745,7 @@ order by model";
                     {
                         model = x.RefCode,
                         pallet = x.Ref1
-                    }).Select(o => new {o.Key.pallet }).ToList();
+                    }).Select(o => new { o.Key.pallet }).ToList();
                     foreach (var oPallet in PalletsOfModel)
                     {
                         string pallet = oPallet.pallet;
@@ -1074,9 +1073,34 @@ order by model";
             {
                 ymd = DateTime.Now.ToString("yyyyMMdd");
             }
+
+
+            List<MHoldInventory> oHoldInventory = new List<MHoldInventory>();
+            OracleCommand strHoldInventory = new OracleCommand();
+            strHoldInventory.CommandText = @"SELECT W.YM ,
+   W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, 
+   SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
+FROM SE.WMS_STKBAL W
+WHERE comid= 'DCI' and ym = :YM
+  and wc in ('HWH','RWQ')
+and balstk > 0
+GROUP BY W.YM,  W.MODEL";
+            // RWQ
+            strHoldInventory.Parameters.Add(new OracleParameter(":YM", DateTime.Now.ToString("yyyyMM")));
+            DataTable dtHoldInventory = _ALPHAPD.Query(strHoldInventory);
+            foreach (DataRow dr in dtHoldInventory.Rows)
+            {
+                MHoldInventory iLastInventory = new MHoldInventory();
+                iLastInventory.ym = dr["YM"].ToString();
+                iLastInventory.model = dr["MODEL"].ToString();
+                iLastInventory.balstk = dr["BALSTK"].ToString();
+                iLastInventory.lbalstk = dr["LBALSTK"].ToString();
+                oHoldInventory.Add(iLastInventory);
+            }
+
+
             List<MInventory> rInventory = new List<MInventory>();
-            //if (inventorytype == "freeze")
-            //{
+
             List<MOSW03Delivery> mOSW03Deliveries = new List<MOSW03Delivery>();
             OracleCommand strGetDelivery = new OracleCommand();
             strGetDelivery.CommandText = $@"SELECT TO_CHAR(H.DELDATE, 'yyyyMMdd') DELDATE,  
@@ -1103,7 +1127,7 @@ order by model";
                 mOSW03Deliveries.Add(oSW03Delivery);
             }
 
-           SqlCommand strGetUkeAlphaInv = new SqlCommand();
+            SqlCommand strGetUkeAlphaInv = new SqlCommand();
             strGetUkeAlphaInv.CommandText = @"SELECT * FROM UKE_ALPHA_INVENTORY WHERE YMD = @YMD";
             strGetUkeAlphaInv.Parameters.Add(new SqlParameter("@YMD", ymd));
             DataTable dtInv = _SQLSCM.Query(strGetUkeAlphaInv);
@@ -1142,7 +1166,7 @@ order by model";
 
             foreach (string oModel in Models)
             {
-               
+
                 bool warning = false;
                 List<string> rCustomer = new List<string>();
                 List<string> rPltype = new List<string>();
@@ -1163,14 +1187,35 @@ order by model";
                 {
                     nInventory += oItemDelivery.qty;
                 }
-              
-                // ---------- CHECK HAVE INBOUND  ------------//
-                MInbound ItemInBound = rInbound.FirstOrDefault(x => x.model == model);
-                if (ItemInBound != null)
+
+                // ============ CEHCK HOLD =================//
+                MHoldInventory oHold = oHoldInventory.FirstOrDefault(x => x.model == model);
+                if (oHold != null)
                 {
-                    nInventory = nInventory + ItemInBound.astQty;
-                    item.inbound = ItemInBound.astQty;
+                    item.hold = helper.ConvStrToDB(oHold.balstk);
                 }
+
+                // ---------- CHECK HAVE INBOUND  ------------//
+                if (model == "1YC25DXD#A")
+                {
+                    Console.WriteLine("asdd");
+                }
+                List<MInbound> ItemInBound = rInbound.Where(x => x.model == model).ToList();
+                foreach (MInbound oInbound in ItemInBound)
+                {
+                    if (oInbound.astType == "IN")
+                    {
+                        nInventory = nInventory + oInbound.astQty;
+                    }
+                    else
+                    {
+                        nInventory = nInventory - oInbound.astQty;
+                    }
+                }
+                double? resultInbound = ItemInBound.Where(x => x.astType == "IN").Sum(x => x.astQty) - ItemInBound.Where(x => x.astType == "OUT").Sum(x => x.astQty);
+                item.inbound = Math.Abs(resultInbound.Value);
+                item.inboundType = resultInbound.Value >= 0 ? "IN" : "OUT";
+
                 // --------------------- END ------------------//
 
                 item.inventory = nInventory;
