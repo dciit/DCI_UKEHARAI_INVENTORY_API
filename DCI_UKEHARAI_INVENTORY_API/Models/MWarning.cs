@@ -7,14 +7,16 @@
         public string sebango { get; set; }
         public List<string> customer { get; set; } = new List<string>();
         public List<MPltypeOfCustomer> pltype { get; set; } = new List<MPltypeOfCustomer>();
-        public double total { get; set; }
+        public decimal total { get; set; }
         public double inventory { get; set; } = 0;
         public List<MData> listSale { get; set; } = new List<MData>();
         public List<MData> listInventory { get; set; } = new List<MData>();
         public List<MWarningExcel>? listSaleExcel { get; set; } = new List<MWarningExcel>();
-        public double? inbound { get; set; } = 0;
+        public decimal inbound { get; set; } = 0;
         public string? inboundType { get; set; } = "";
         public double? hold { get; set; } = 0;
+        public decimal saleToday {  get; set; } = 0;
+        public bool? inventoryUnEqual { get; set; } = false;
     }
 
     public class MWarningExcel

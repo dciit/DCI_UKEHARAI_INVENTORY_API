@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Data.SqlClient;
 using Oracle.ManagedDataAccess.Client;
 using System.Data;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 namespace DCI_UKEHARAI_INVENTORY_API
 {
@@ -365,28 +367,34 @@ namespace DCI_UKEHARAI_INVENTORY_API
         //            }
         //            return res;
         //        }
-
-
-        internal List<MInbound> GetInbound(DateTime sDate, DateTime fDate, string type = "")
+        internal DataTable WmsGetSales(string ym)
         {
+            OracleCommand str = new OracleCommand();
+            str.CommandText = $@"WITH H AS (
+                                    SELECT CTD.IVNO, CTD.DONO, TO_CHAR(MIN(CTD.LOADDATE), 'yyyyMMdd') LOADDATE
+                                    FROM SE.WMS_DELCTD CTD
+                                    WHERE TO_CHAR(CTD.LOADDATE, 'yyyyMMdd') LIKE '{ym}%'  
+                                    GROUP BY CTD.IVNO, CTD.DONO
+                                )
+                                SELECT H.IVNO, H.DONO, H.LOADDATE, D.MODEL, SUM(D.PICQTY) PICQTY 
+                                FROM H
+                                LEFT JOIN SE.WMS_DELDTL D ON H.IVNO = D.IVNO AND H.DONO = D.DONO 
+                                GROUP BY H.IVNO, H.DONO, H.LOADDATE, D.MODEL  ";
+            DataTable dt = _ALPHAPD.Query(str);
+            return dt;
+        }
 
-            List<MInbound> res = new List<MInbound>();
+        internal DataTable WmsGetAssortInOut(string ym)
+        {
+            DateTime ymdStart = DateTime.ParseExact(ym + "01", "yyyyMMdd", CultureInfo.InvariantCulture);
+            int year = ymdStart.Year;
+            int month = ymdStart.Month;
+            int dayInMonth = DateTime.DaysInMonth(year, month);
             OracleCommand strInWH = new OracleCommand();
-            strInWH.CommandText = $@"SELECT TO_CHAR(W.ASTDATE,'YYYY-MM-DD') AS ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE, SUM(W.ASTQTY) ASTQTY 
-FROM SE.WMS_ASSORT W
-WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (type == "IN" || type == "OUT")) ? (" AND W.ASTTYPE = '" + type + "'") : "") + "AND TO_CHAR(astdate,'YYYY-MM-DD') BETWEEN '" + sDate.AddHours(-8).ToString("yyyy-MM-dd") + "' AND '" + fDate.AddDays(-8).ToString("yyyy-MM-dd") + "' GROUP BY W.ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE";
+            strInWH.CommandText = $@"SELECT TO_CHAR(W.ASTDATE,'YYYY-MM-DD') AS ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE, SUM(W.ASTQTY) ASTQTY  FROM SE.WMS_ASSORT W 
+                                    WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' AND TO_CHAR(astdate,'YYYY-MM-DD') BETWEEN '" + ymdStart.ToString("yyyy-MM-dd") + "' AND '" + ($"{year}-{month}-{dayInMonth}") + "' GROUP BY W.ASTDATE, W.ASTTYPE, W.MODEL,  W.PLTYPE";
             DataTable dt = _ALPHAPD.Query(strInWH);
-            foreach (DataRow dr in dt.Rows)
-            {
-                MInbound item = new MInbound();
-                item.astDate = dr["ASTDATE"].ToString();
-                item.model = dr["MODEL"].ToString();
-                item.pltype = dr["PLTYPE"].ToString();
-                item.astQty = dr["ASTQTY"].ToString() != "" ? int.Parse(dr["ASTQTY"].ToString()) : 0;
-                item.astType = dr["ASTTYPE"].ToString();
-                res.Add(item);
-            }
-            return res;
+            return dt;
         }
 
         internal List<GstSalMdl> GetSKU()
@@ -544,28 +552,449 @@ WHERE comid = 'DCI'  AND MODEL LIKE '%' AND PLNO LIKE '%' " + ((type != "" && (t
             return oSaleVersion;
         }
 
-        internal List<WmsStkBal> MWSGetInventory(int yyyy, int mm)
+        internal List<WmsStkBal> GetCurrentInventory(int yyyy, int mm)
         {
             List<WmsStkBal> rInventory = new List<WmsStkBal>();
-            string ym = new DateTime(yyyy, mm, 01, 0, 0, 0).ToString("yyyyMM");
-            OracleCommand str = new OracleCommand();
-            str.CommandText = @"SELECT W.YM,  W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
-            FROM SE.WMS_STKBAL W
-            WHERE comid= 'DCI' and ym =  :YM and wc in ('DCI','SKO')
-            GROUP BY W.YM, W.MODEL";
-            str.Parameters.Add(new OracleParameter(":YM", ym));
-            DataTable dtLastInventory = _ALPHAPD.Query(str);
-            foreach (DataRow dr in dtLastInventory.Rows)
+            //string ym = new DateTime(yyyy, mm, 01, 0, 0, 0).ToString("yyyyMM");
+            //OracleCommand str = new OracleCommand();
+            //str.CommandText = @"SELECT W.YM,  W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
+            //FROM SE.WMS_STKBAL W
+            //WHERE comid= 'DCI' and ym =  :YM and wc in ('DCI','SKO')
+            //GROUP BY W.YM, W.MODEL";
+            //str.Parameters.Add(new OracleParameter(":YM", ym));
+            //DataTable dtLastInventory = _ALPHAPD.Query(str);
+            //foreach (DataRow dr in dtLastInventory.Rows)
+            //{
+            //    WmsStkBal mInventory = new WmsStkBal();
+            //    mInventory.ym = dr["YM"].ToString();
+            //    //mInventory.wc = dr["WC"].ToString();
+            //    mInventory.model = dr["MODEL"].ToString();
+            //    mInventory.lbalstk = dr["LBALSTK"].ToString();
+            //    mInventory.balstk = dr["BALSTK"].ToString();
+            //    rInventory.Add(mInventory);
+            //}
+            DataTable dtStockFG = GetStockOfDay(DateTime.Now.AddDays(-1).ToString("yyyyMMdd"));
+            foreach (DataRow dr in dtStockFG.Rows)
             {
                 WmsStkBal mInventory = new WmsStkBal();
-                mInventory.ym = dr["YM"].ToString();
+                mInventory.ym = (dr["YMD"].ToString()).Substring(1, 6);
                 //mInventory.wc = dr["WC"].ToString();
                 mInventory.model = dr["MODEL"].ToString();
-                mInventory.lbalstk = dr["LBALSTK"].ToString();
-                mInventory.balstk = dr["BALSTK"].ToString();
+                //mInventory.lbalstk = dr["LBALSTK"].ToString();
+                mInventory.balstk = dr["INVENTORY"].ToString();
                 rInventory.Add(mInventory);
             }
             return rInventory;
+        }
+
+        internal List<MInventory> Get8AMInventory(string YMD)
+        {
+            List<MInventory> mInventories = new List<MInventory>();
+            SqlCommand sql = new SqlCommand();
+            //sql.CommandText = @"SELECT * FROM UKE_ALPHA_INVENTORY WHERE YMD = @YMD";
+            sql.CommandText = @"  SELECT MODEL,CNT,YMD FROM UKE_ALPHA_INVENTORY WHERE YMD =  @YMD
+  GROUP  BY   MODEL,CNT,YMD";
+            sql.Parameters.Add(new SqlParameter("@YMD", YMD));
+            DataTable dtInv = DBSCM.Query(sql);
+            foreach (DataRow dr in dtInv.Rows)
+            {
+                MInventory item = new MInventory();
+                item.cnt = dr["CNT"].ToString() != "" ? dr["CNT"].ToString() : "0";
+                item.model = dr["MODEL"].ToString();
+                mInventories.Add(item);
+            }
+            return mInventories;
+        }
+
+        internal List<MOSW03Delivery> GetDeliveryByYM(DateTime dtToday)
+        {
+            List<MOSW03Delivery> mOSW03Deliveries = new List<MOSW03Delivery>();
+            OracleCommand Ora = new OracleCommand();
+            Ora.CommandText = $@"SELECT TO_CHAR(H.DELDATE, 'yyyyMMdd') DELDATE,  
+                                               W.MODEL, W.PLTYPE,   
+                                               SUM(W.QTY) QTY, 
+                                               SUM(W.ALQTY) ALQTY,   
+                                               SUM(W.PICQTY) PICQTY   
+                                            FROM SE.WMS_DELCTN W
+                                            LEFT JOIN SE.WMS_DELCTL H ON H.COMID='DCI' AND H.IVNO = W.IVNO AND H.DONO = W.DONO 
+                                            WHERE W.CFBIT = 'F' AND W.IFBIT = 'F' AND TO_CHAR(H.DELDATE, 'yyyyMMdd') LIKE '{dtToday.Year}{dtToday.ToString("MM")}%'
+                                            GROUP BY TO_CHAR(H.DELDATE, 'yyyyMMdd') , W.MODEL, W.PLTYPE   ";
+            DataTable dt = _ALPHAPD.Query(Ora);
+            foreach (DataRow dr in dt.Rows)
+            {
+                MOSW03Delivery item = new MOSW03Delivery();
+                item.model = dr["MODEL"].ToString().Trim();
+                item.pltype = dr["PLTYPE"].ToString().Trim();
+                //item.cfdate = dr["CFDATE"].ToString();
+                //item.ifdate = dr["IFDATE"].ToString();
+                item.deldate = dr["DELDATE"].ToString();
+                item.qty = Convert.ToInt32(dr["QTY"].ToString());
+                item.alqty = Convert.ToInt32(dr["ALQTY"].ToString());
+                item.picqty = Convert.ToInt32(dr["PICQTY"].ToString());
+                mOSW03Deliveries.Add(item);
+            }
+            return mOSW03Deliveries;
+        }
+
+        internal List<MHoldInventory> GetHoldByYM(int year, int month)
+        {
+            List<MHoldInventory> mHoldInventories = new List<MHoldInventory>();
+            try
+            {
+                OracleCommand Ora = new OracleCommand();
+                Ora.CommandText = @"SELECT W.YM ,W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK,  SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK   FROM SE.WMS_STKBAL W WHERE comid= 'DCI' and ym = :YM and wc in ('HWH','RWQ') and balstk > 0 GROUP BY W.YM,  W.MODEL";
+                Ora.Parameters.Add(new OracleParameter(":YM", DateTime.Now.ToString("yyyyMM")));
+                DataTable dt = _ALPHAPD.Query(Ora);
+                foreach (DataRow dr in dt.Rows)
+                {
+                    MHoldInventory item = new MHoldInventory();
+                    item.ym = dr["YM"].ToString();
+                    item.model = dr["MODEL"].ToString();
+                    item.balstk = dr["BALSTK"].ToString();
+                    item.lbalstk = dr["LBALSTK"].ToString();
+                    mHoldInventories.Add(item);
+                }
+                return mHoldInventories;
+            }
+            catch
+            {
+                return mHoldInventories;
+            }
+        }
+
+        internal DataTable GetStockOfDay(string YMD)
+        {
+            DataTable dt = new DataTable();
+            SqlCommand sql = new SqlCommand();
+            sql.CommandText = $@"SELECT * FROM [dbSCM].[dbo].[UKE_INITIAL_STOCK_DCI_OF_DAY]  WHERE YMD = '{YMD}'";
+            dt = DBSCM.Query(sql);
+            return dt;
+        }
+
+        internal DataTable WmsGetTransferInOut(string ym)
+        {
+            OracleCommand str = new OracleCommand();
+            str.CommandText = $@"select to_char(h.recdate,'YYYYMMDD') RECYMD, d.trnno, d.model, d.pltype, d.recqty, h.fromwh, h.towh, case when fromwh='DCI' then 'OUT' else 'IN' end trntype 
+                               from wms_trnctl h
+                               left join wms_trndtl d on d.trnno = h.trnno  
+                               where (h.fromwh = 'DCI' or h.towh = 'DCI') and h.trnsts= 'Transfered' and h.recsts = 'Received'
+                               and to_char(h.recdate,'YYYYMMDD') LIKE '{ym}%'
+                               order by h.recdate asc  ";
+            DataTable dt = _ALPHAPD.Query(str);
+            return dt;
+        }
+
+        internal DataTable WmsGetSaleExport(string ym)
+        {
+            OracleCommand str = new OracleCommand();
+            str.CommandText = $@"SELECT H.IVNO,TO_CHAR(H.DELDATE, 'yyyyMMdd') DELDATE,  W.MODEL,SUM(W.PICQTY) PICQTY  FROM SE.WMS_DELCTN W
+                                            LEFT JOIN SE.WMS_DELCTL H ON H.COMID='DCI' AND H.IVNO = W.IVNO AND H.DONO = W.DONO 
+                                            WHERE W.CFBIT = 'F' AND W.IFBIT IN ('F','U') AND TO_CHAR(H.DELDATE, 'yyyyMMdd') LIKE '{ym}%'
+                                            AND TO_CHAR(W.UDATE, 'yyyyMMdd') LIKE '{ym}%'
+                                            GROUP BY H.IVNO,TO_CHAR(H.DELDATE, 'yyyyMMdd') , W.MODEL  ";
+            DataTable dt = _ALPHAPD.Query(str);
+            return dt;
+        }
+
+        internal DataTable WmsGetSaleDomestic(string ym)
+        {
+            OracleCommand str = new OracleCommand();
+            str.CommandText = $@"SELECT TO_CHAR(H.DELDATE, 'yyyyMMdd') DELDATE,  
+                                               W.MODEL, W.PLTYPE,   
+                                               SUM(W.QTY) QTY, 
+                                               SUM(W.ALQTY) ALQTY,   
+                                               SUM(W.PICQTY) PICQTY   
+                                            FROM SE.WMS_DELCTN W
+                                            LEFT JOIN SE.WMS_DELCTL H ON H.COMID='DCI' AND H.IVNO = W.IVNO AND H.DONO = W.DONO 
+                                            WHERE W.CFBIT = 'F' AND W.IFBIT = 'F' AND TO_CHAR(H.DELDATE, 'yyyyMMdd') LIKE '{ym}%'
+                                            GROUP BY TO_CHAR(H.DELDATE, 'yyyyMMdd') , W.MODEL, W.PLTYPE ";
+            DataTable dt = _ALPHAPD.Query(str);
+            return dt;
+        }
+
+        internal DataTable WmsGetInventoryIVW01(string ym)
+        {
+            OracleCommand str = new OracleCommand();
+            str.CommandText = $@" SELECT W.YM, 
+                               W.MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, 
+                               SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK
+                               FROM SE.WMS_STKBAL W
+                               WHERE comid = 'DCI' and ym = '{ym}' and wc in ('DCI', 'SKO')
+                               GROUP BY W.YM, W.MODEL";
+            DataTable dt = _ALPHAPD.Query(str);
+            return dt;
+        }
+        internal DataTable GetFGList()
+        {
+            SqlCommand sql = new SqlCommand();
+            sql.CommandText = $@"SELECT [MODELGROUP], [MODEL]  ,CAST([SEBANGO] AS NVARCHAR(4))  SEBANGO,DIAMETER FROM [dbSCM].[dbo].[WMS_MDW27_MODEL_MASTER] WHERE ACTIVE = 'ACTIVE' GROUP BY [MODELGROUP], [MODEL]  ,[SEBANGO],DIAMETER ";
+            DataTable dt = DBSCM.Query(sql);
+            return dt;
+        }
+
+        internal DataTable GetSaleInfo(string ym)
+        {
+            string year = ym.Substring(0, 4);
+            MSaleVersion saleVer = getSaleVersion(year);
+            int rev = saleVer.rev;
+            int lrev = saleVer.lrev;
+
+            SqlCommand sqlGetSale = new SqlCommand();
+            sqlGetSale.CommandText = $@"SELECT * FROM [dbSCM].[dbo].[AL_SaleForecaseMonth]  WHERE ym = '{ym}' AND REV = '{rev}' AND LREV = '{lrev}' AND (D01 >0 OR D02 >0 OR D03 >0 OR D04 >0 OR D05 >0 OR D06 >0 OR D07 >0 OR D08 >0 OR D09 >0 OR D10 >0 OR D11 >0 OR D12 >0 OR D13 >0 OR D14 >0 OR D15 >0 OR D16 >0 OR D17 >0 OR D18 >0 OR D19 >0 OR D20 >0 OR D21 >0 OR D22 >0 OR D23 >0 OR D24 >0 OR D25 >0 OR D26 >0 OR D27 >0 OR D28 >0 OR D29 >0 OR D30 >0 OR D31 >0)  order by Customer ASC";
+            DataTable dtSaleInfo = DBSCM.Query(sqlGetSale);
+            return dtSaleInfo;
+        }
+        internal DataTable GetDelivery(string ym)
+        {
+            string year = ym.Substring(0, 4);
+            string month = ym.Substring(4, 2);
+            List<MOSW03Delivery> mOSW03Deliveries = new List<MOSW03Delivery>();
+            OracleCommand strGetDelivery = new OracleCommand();
+            strGetDelivery.CommandText = $@"SELECT TO_CHAR(H.DELDATE, 'yyyyMMdd') DELDATE,  
+                                               TRIM(W.MODEL) MODEL, W.PLTYPE,   
+                                               SUM(W.QTY) QTY, 
+                                               SUM(W.ALQTY) ALQTY,   
+                                               SUM(W.PICQTY) PICQTY   
+                                            FROM SE.WMS_DELCTN W
+                                            LEFT JOIN SE.WMS_DELCTL H ON  H.IVNO = W.IVNO AND H.DONO = W.DONO 
+                                            WHERE W.COMID = 'DCI' AND  W.CFBIT = 'F' AND W.IFBIT = 'F' AND TO_CHAR(H.DELDATE, 'yyyyMMdd') LIKE '{year}{month}%'
+                                            GROUP BY TO_CHAR(H.DELDATE, 'yyyyMMdd') , W.MODEL, W.PLTYPE   ";
+            DataTable dtDelivery = _ALPHAPD.Query(strGetDelivery);
+            return dtDelivery;
+        }
+
+        internal void SetPropertyValue(object obj, string propertyName, object value)
+        {
+            PropertyInfo? prop = obj.GetType().GetProperty(propertyName);
+            if (prop != null && prop.CanWrite)
+            {
+                if (value is decimal decimalValue)
+                {
+                    prop.SetValue(obj, decimalValue.ToString());
+                }
+                else
+                {
+                    prop.SetValue(obj, value);
+                }
+
+            }
+        }
+
+        internal object GetValueByKey(object obj, string key)
+        {
+            var propertyInfo = obj.GetType().GetProperty(key); // ค้นหา Property ตามชื่อ Key
+            if (propertyInfo != null)
+            {
+                return propertyInfo.GetValue(obj); // ดึงค่า Property
+            }
+
+            return null; // คืนค่า null หากไม่พบ Property
+        }
+
+        internal T? GetDynamicValueNullable<T>(object obj, string propertyName) where T : struct
+        {
+            PropertyInfo? property = obj.GetType().GetProperty(propertyName);
+
+            if (property == null || !property.CanRead)
+            {
+                throw new ArgumentException($"Property '{propertyName}' not found or is not readable.");
+            }
+
+            object? value = property.GetValue(obj);
+
+            if (value == null)
+            {
+                return null;
+            }
+
+            return (T)Convert.ChangeType(value, typeof(T));
+        }
+        internal DataTable GetWMSFGInventory()
+        {
+
+            OracleCommand strAlphaPD = new OracleCommand();
+            strAlphaPD.CommandText = @"select model, pltype, count(serial) cnt,to_char(current_date,'YYYY-MM-DD') as currentDate
+from fh001 
+where comid='DCI' and nwc in ('DCI','SKO')  
+  and locacode like '%'
+group by model, pltype
+order by model";
+            DataTable dtInventory = _ALPHAPD.Query(strAlphaPD);
+            return dtInventory;
+        }
+        internal List<DstWipPrd> GetFGFinalResult(string ym)
+        {
+            List<DstWipPrd> rResultFinal = new List<DstWipPrd>();
+            OracleCommand strGetResultFinal = new OracleCommand();
+            strGetResultFinal.CommandText = @"select prdymd,wcno,model,sum(qty) as QTY  from dst_wippdr where prdymd like '" + ym + "%' and lrev = 999  group by prdymd,wcno,model";
+            DataTable dtResultFinal = _ALPHAPD2.Query(strGetResultFinal);
+            foreach (DataRow dr in dtResultFinal.Rows)
+            {
+                DstWipPrd itemResultFinal = new DstWipPrd();
+                itemResultFinal.prdymd = dr["PRDYMD"].ToString();
+                itemResultFinal.model = dr["MODEL"].ToString().Trim();
+                itemResultFinal.qty = dr["QTY"].ToString() != "" ? decimal.Parse(dr["QTY"].ToString()) : 0;
+                itemResultFinal.wcno = dr["WCNO"].ToString();
+                rResultFinal.Add(itemResultFinal);
+            }
+            return rResultFinal;
+        }
+
+        internal DataTable getCurPlnTotalOfDay(string ym)
+        {
+            SqlCommand sql = new SqlCommand();
+            sql.CommandText = $@"SELECT TRIM([MODEL]) MODEL
+      ,[SEBANGO] 
+      ,SUM([DAY01]) [DAY01]
+      ,SUM([DAY02]) [DAY02]
+	   ,SUM([DAY03]) [DAY03]
+	    ,SUM([DAY04]) [DAY04]
+		 ,SUM([DAY05]) [DAY05]
+		  ,SUM([DAY06]) [DAY06]
+		   ,SUM([DAY07]) [DAY07]
+		    ,SUM([DAY08]) [DAY08]
+			 ,SUM([DAY09]) [DAY09]
+			  ,SUM([DAY10]) [DAY10]
+			   ,SUM([DAY11]) [DAY11]
+			    ,SUM([DAY12]) [DAY12]
+				 ,SUM([DAY13]) [DAY13]
+				  ,SUM([DAY14]) [DAY14]
+				   ,SUM([DAY15]) [DAY15]
+				    ,SUM([DAY16]) [DAY16]
+					 ,SUM([DAY17]) [DAY17]
+					  ,SUM([DAY18]) [DAY18]
+					   ,SUM([DAY19]) [DAY19]
+					      ,SUM([DAY20]) [DAY20]
+						     ,SUM([DAY21]) [DAY21]
+							    ,SUM([DAY22]) [DAY22]
+								   ,SUM([DAY23]) [DAY23]
+								      ,SUM([DAY24]) [DAY24]
+									     ,SUM([DAY25]) [DAY25]
+										    ,SUM([DAY26]) [DAY26]
+											   ,SUM([DAY27]) [DAY27]
+											      ,SUM([DAY28]) [DAY28]
+												     ,SUM([DAY29]) [DAY29]
+													    ,SUM([DAY30]) [DAY30]   ,SUM([DAY31]) [DAY31]
+      ,SUM([YM_QTY]) TOTAL
+  FROM [dbSCM].[dbo].[AL_GSD_CURPLN]
+  WHERE PRDYM = '{ym}' AND (DAY01 > 0 OR DAY02 > 0 OR DAY03 > 0 OR DAY04 > 0 OR DAY05 > 0  OR DAY06 > 0  OR DAY07 > 0  OR DAY08 > 0  OR DAY09 > 0  OR DAY10 > 0
+   OR DAY11 > 0  OR DAY12 > 0  OR DAY13 > 0  OR DAY14 > 0  OR DAY15 > 0  OR DAY16 > 0  OR DAY17 > 0  OR DAY18 > 0  OR DAY19 > 0 OR DAY20 > 0
+    OR DAY21 > 0  OR DAY22 > 0  OR DAY23 > 0  OR DAY24 > 0  OR DAY25 > 0  OR DAY26 > 0  OR DAY27 > 0  OR DAY28 > 0  OR DAY29 > 0  OR DAY30 > 0 OR DAY31 > 0) 
+	GROUP BY   TRIM([MODEL]) 
+      ,[SEBANGO] ";
+            DataTable dt = DBSCM.Query(sql);
+            return dt;
+        }
+
+        internal DataTable GetFGHold(string ym)
+        {
+            OracleCommand strHoldInventory = new OracleCommand();
+            strHoldInventory.CommandText = $@"SELECT W.YM , TRIM( W.MODEL) MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, 
+                                                   SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
+                                                FROM SE.WMS_STKBAL W
+                                                WHERE comid= 'DCI' and ym = '{ym}'
+                                                  and wc in ('HWH','RWQ')
+                                                and balstk > 0
+                                                GROUP BY W.YM,  W.MODEL";
+            DataTable dtHoldInventory = _ALPHAPD.Query(strHoldInventory);
+            return dtHoldInventory;
+        }
+
+        internal DataTable GetFGPDT(string ym)
+        {
+            OracleCommand strPDT = new OracleCommand();
+            strPDT.CommandText = $@"SELECT W.YM, W.WC, 
+                                   (W.MODEL) MODEL, SUM(W.LBALSTK) LBALSTK, SUM(W.INSTK) INSTK, 
+                                   SUM(W.OUTSTK) OUTSTK, SUM(W.BALSTK) BALSTK  
+                                FROM SE.WMS_STKBAL W
+                                WHERE comid= 'DCI' and ym = '{ym}'
+                                  and wc in ('PDT')
+                                  and balstk > 0
+                                GROUP BY W.YM, W.WC, W.MODEL";
+            DataTable dtPDT = _ALPHAPD.Query(strPDT);
+            return dtPDT;
+        }
+        internal DataTable GetLastFGInventory(string ym)
+        {
+            OracleCommand sql = new OracleCommand();
+            sql.CommandText = $@"SELECT W.YM, 
+                       TRIM(W.MODEL) MODEL, SUM(W.LBALSTK) LBALSTK,SUM(W.BALSTK) BALSTK  
+                    FROM SE.WMS_STKBAL W
+                    WHERE comid= 'DCI' and ym =  '{ym}'
+                      and wc in ('DCI','SKO')
+                    GROUP BY W.YM, W.MODEL";
+            DataTable dtLastInventory = _ALPHAPD.Query(sql);
+            return dtLastInventory;
+        }
+        internal DataTable GetUkeStartStockOfDay()
+        {
+            SqlCommand sql = new SqlCommand();
+            sql.CommandText = $@"SELECT * FROM [dbSCM].[dbo].[UKE_INITIAL_STOCK_DCI_OF_DAY]
+  WHERE YMD = CASE WHEN (SELECT TOP (1) [YMD]  FROM [dbSCM].[dbo].[UKE_INITIAL_STOCK_DCI_OF_DAY] ORDER BY YMD DESC ) IS NULL THEN FORMAT(GETDATE(),'yyyyMMdd') 
+	ELSE (SELECT TOP (1) [YMD]  FROM [dbSCM].[dbo].[UKE_INITIAL_STOCK_DCI_OF_DAY] ORDER BY YMD DESC) END";
+            DataTable dt = DBSCM.Query(sql);
+            return dt;
+        }
+
+        internal DataTable GetInbounds()
+        {
+            DateTime dtNow = DateTime.Now;
+            string year = dtNow.ToString("yyyy");
+            string month = dtNow.ToString("MM");
+            int dayOfMonth = DateTime.DaysInMonth(int.Parse(year), int.Parse(month));
+
+            SqlCommand sql = new SqlCommand();
+            sql.CommandText = $@"SELECT  [MODEL],[AREA] SBU  FROM [dbSCM].[dbo].[WMS_MDW27_MODEL_MASTER] GROUP BY [MODEL],[AREA]";
+            DataTable dtSBU = DBSCM.Query(sql);
+
+            OracleCommand ora = new OracleCommand();
+            ora.CommandText = $@"SELECT '' SBU, MSTR.SEBANGO,CASE 
+                                                        WHEN SUBSTR(INB.MODEL, 1, 2) = '1Y' THEN '1YC'
+                                                        WHEN SUBSTR(INB.MODEL, 1, 2) = '2Y' THEN '2YC'
+                                                        WHEN SUBSTR(INB.MODEL, 1, 1) = 'J' THEN 'SCR'
+                                                        ELSE 'ODM'  END AS SKU, INB.* FROM (SELECT TO_CHAR(W.ASTDATE,'dd') AS Day, TRIM(W.MODEL) MODEL
+                                                        --,  W.PLTYPE
+                                                        , SUM(CASE WHEN W.ASTTYPE = 'IN' THEN W.ASTQTY ELSE (W.ASTQTY * -1) END) QTY 
+FROM SE.WMS_ASSORT W
+WHERE comid = 'DCI'  AND TO_CHAR(astdate -8/24,'YYYY-MM-DD') BETWEEN '{year}-{month}-01' AND '{year}-{month}-{dayOfMonth}' 
+GROUP BY W.ASTDATE
+--, W.ASTTYPE
+, W.MODEL,  W.PLTYPE) 
+PIVOT (
+    SUM(QTY) FOR Day  IN ('01' AS d01, '02' AS d02, '03' AS d03, '04' AS d04, '05' AS d05, '06' AS d06, '07' AS d07, '08' AS d08, '09' AS d09, '10' AS d10, '11' AS d11, '12' AS d12, '13' AS d13, '14' AS d14, '15' AS d15, '16' AS d16, '17' AS d17, '18' AS d18, '19' AS d19, '20' AS d20, '21' AS d21, '22' AS d22, '23' AS d23, '24' AS d24, '25' AS d25, '26' AS d26, '27' AS d27, '28' AS d28, '29' AS d29, '30' AS d30, '31' AS d31 )
+    ) INB
+    LEFT JOIN (  SELECT MODEL ,POSTCODE AS SEBANGO FROM MT003 WHERE lrev = 999 GROUP BY  MODEL,POSTCODE) MSTR
+    ON MSTR.MODEL = INB.MODEL";
+            DataTable dtInbound = _ALPHAPD.Query(ora);
+            foreach(DataRow dr in dtInbound.Rows)
+            {
+                var oSBU = dtSBU.AsEnumerable().Where(x => x.Field<string>("MODEL") == dr["MODEL"].ToString()).ToList();
+                string sbu = "";
+                if (oSBU != null)
+                {
+                    sbu = oSBU.FirstOrDefault().Field<string>("SBU");
+                }
+                dr["SBU"] = sbu;
+            }
+            return dtInbound;
+        }
+        public List<Dictionary<string, object>> DataTableToJson(DataTable table)
+        {
+            var rows = new List<Dictionary<string, object>>();
+
+            foreach (DataRow row in table.Rows)
+            {
+                var rowDictionary = new Dictionary<string, object>();
+                foreach (DataColumn column in table.Columns)
+                {
+                    // Replace DBNull or null with an empty string
+                    rowDictionary[column.ColumnName] = row[column] == DBNull.Value || row[column] == null
+                        ? ""
+                        : row[column];
+                }
+                rows.Add(rowDictionary);
+            }
+            return rows;
         }
     }
 }

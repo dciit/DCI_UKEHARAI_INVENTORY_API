@@ -16,6 +16,10 @@ builder.Services.AddCors(options => options.AddPolicy("Cors", builder =>
     .AllowAnyMethod()
     .AllowAnyHeader();
 }));
+//builder.Services.AddControllers().AddJsonOptions(options =>
+//{
+//    options.JsonSerializerOptions.PropertyNamingPolicy = null; // Preserve original casing
+//});
 // Configure the HTTP request pipeline.
 var app = builder.Build();
 app.UseCors("Cors");

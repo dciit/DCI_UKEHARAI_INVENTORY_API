@@ -13,11 +13,34 @@
                 return value;
             }
         }
+
+        public double ConvDecToDb(decimal val)
+        {
+            try
+            {
+                return Convert.ToDouble(val);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
         public decimal ConvStrToDec(string val)
         {
             try
             {
                 return val != "" ? Convert.ToDecimal(val) : 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+        public decimal ConvInt2Dec(int val)
+        {
+            try
+            {
+                return Convert.ToDecimal(val);
             }
             catch
             {

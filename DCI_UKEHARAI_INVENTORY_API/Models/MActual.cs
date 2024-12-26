@@ -61,21 +61,33 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
         public List<AlGsdCurpln> listCurpln { get; set; } = new List<AlGsdCurpln>();
         public List<AlSaleForecaseMonth> listSaleForecast { get; set; } = new List<AlSaleForecaseMonth>();
         public List<MInbound> listInbound { get; set; } = new List<MInbound>();
-        public List<MInventory> Inventory { get; set; } = new List<MInventory>();
+        public List<MInventory> inventory { get; set; } = new List<MInventory>();
         public List<MMainResult> listActMain { get; set; } = new List<MMainResult>();
-        public EkbWipPartStock LastInventoryMain { get; set; } = new EkbWipPartStock();
+        public EkbWipPartStock lastInventoryMain { get; set; } = new EkbWipPartStock();
         public int totalInventoryPlanningMain { get; set; } = 0;
         public List<MHoldInventory> listHoldInventory { get; set; } = new List<MHoldInventory>();
         public List<MHoldInventory> listPDTInventory { get; set; } = new List<MHoldInventory>();
-        public double LastInventory { get; set; } = 0;
-        public List<InventoryBalance> InventoryBalance { get; set; } = new List<InventoryBalance>();
-        public List<InventoryBalancePltype> InventoryBalancePltype { get; set; } = new List<InventoryBalancePltype>();
+        public double lastInventory { get; set; } = 0;
+        public List<InventoryBalance> inventoryBalance { get; set; } = new List<InventoryBalance>();
+        public List<InventoryBalancePltype> inventoryBalancePltype { get; set; } = new List<InventoryBalancePltype>();
 
         public List<MData> listSaleForeCaseAllCustomer { get; set; }
         public List<MDelivery> listDelivery { get; set; } = new List<MDelivery>();
         public List<MData> listInventoryPlanningMain { get; set; } = new List<MData>();
         public List<MInventory> listInventoryPlanningMainOrFinal { get; set; } = new List<MInventory>();
+
         public decimal? inventoryPlanningMainOrFinalEnd { get; set; } = 0;
+        public List<Dictionary<string, object>> newInbound { get; internal set; }
+    }
+
+    public class PropInventoryBalancePltype
+    {
+        public string sebango { get; set; } = "";
+        public string sku { get; set; } = "";
+        public string sbu { get; set; } = "";
+        public string model { get; set; } = "";
+        public string pltype { get; set; } = "";
+        public string d26 { get; set; } = "";
     }
 
     public class MDelivery
@@ -93,7 +105,7 @@ namespace DCI_UKEHARAI_INVENTORY_API.Models
     public class MData
     {
         public string date { get; set; }
-        public double value { get; set; } = 0;
+        public decimal value { get; set; } = 0;
         public string? customer { get; set; }
         public string? pltype { get; set; }
     }
